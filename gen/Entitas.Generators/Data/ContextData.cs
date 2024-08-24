@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Entitas.Generators.StringConstants;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Data;
 
 public struct ContextData : IClassDeclarationResolver, IAttributeResolver
 {
@@ -25,11 +25,17 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
 
     public bool TryResolveClassDeclaration(INamedTypeSymbol namedTypeSymbol, CancellationToken ct)
     {
+        throw new System.NotImplementedException();
 
     }
 
     public bool TryResolveAttribute(AttributeData attributeData)
     {
+        throw new System.NotImplementedException();
+    }
 
+    public bool TryResolveClassDeclaration(INamedTypeSymbol namedTypeSymbol)
+    {
+        throw new System.NotImplementedException();
     }
 }

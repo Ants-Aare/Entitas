@@ -26,6 +26,12 @@ namespace Entitas.Generators
                 """;
         }
 
+        public static string FileNameHint(string? @namespace, string name)
+        {
+            return !string.IsNullOrEmpty(@namespace)
+                ? $"{@namespace}.{name}.g.cs"
+                : $"{name}.g.cs";
+        }
         public static string CombinedNamespace(string? @namespace, string suffix)
         {
             return !string.IsNullOrEmpty(@namespace)

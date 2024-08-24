@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using static Entitas.Generators.StringConstants;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Data;
 
 public struct FieldData : IAttributeResolver, IFieldResolver
 {
