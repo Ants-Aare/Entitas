@@ -5,6 +5,9 @@
     <Version>1.14.2</Version>
     <Nullable>enable</Nullable>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>True</Deterministic>
+    <IsRoslynComponent>true</IsRoslynComponent>
   </PropertyGroup>
 
   <ItemGroup>
