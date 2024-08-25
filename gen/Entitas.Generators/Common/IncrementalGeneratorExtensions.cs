@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace Entitas.Generators.Common;
@@ -13,4 +15,7 @@ public static class IncrementalGeneratorExtensions
         => valueProvider.Select(static (x, _) => x.Sort());
     public static IncrementalValueProvider<ImmutableArray<T>> Sort<T>(this IncrementalValueProvider<ImmutableArray<T>> valueProvider, IComparer<T> iComparer)
         => valueProvider.Select((x, _) => x.Sort(iComparer));
+
+    public static IncrementalValuesProvider<TOut> SelectManyWithIndex<TIn, TOut>(this IncrementalValueProvider<ImmutableArray<TIn>> valueProvider, Func<TIn, int, TOut> transform)
+        => valueProvider.SelectMany((x, _) => x.Select(transform));
 }

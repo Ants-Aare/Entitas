@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -11,7 +10,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IFinalizable, IEquatable<ComponentData>
+public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IEquatable<ComponentData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -19,15 +18,12 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     public string FullPrefix { get; private set; }
     public string Prefix { get; private set; }
 
-    public ImmutableArray<FieldData> Fields { get; private set; }
-    public ImmutableArray<ComponentEventData> Events { get; private set; }
-    public ImmutableArray<int> ComponentAddedContexts { get; private set; }
-
-    List<FieldData> _fields = new();
-    HashSet<ComponentEventData> _events = new();
-    HashSet<int> _componentAddedContexts = new();
+    public List<FieldData> Fields { get; private set; } = new();
+    public HashSet<ComponentEventData> Events { get; private set; } = new();
+    public HashSet<int> ComponentAddedContexts { get; private set; } = new();
     public bool IsUnique { get; private set; }
     public CleanupMode CleanupMode { get; private set; }
+    public int Index;
 
     public ComponentData()
     {
@@ -36,9 +32,6 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         Name = null!;
         FullPrefix = null!;
         Prefix = null!;
-        Fields = ImmutableArray<FieldData>.Empty;
-        Events = ImmutableArray<ComponentEventData>.Empty;
-        ComponentAddedContexts = ImmutableArray<int>.Empty;
         IsUnique = false;
         CleanupMode = CleanupMode.None;
     }
@@ -97,7 +90,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         {
             if (context.Value == null)
                 continue;
-            _componentAddedContexts.Add((int)context.Value);
+            ComponentAddedContexts.Add((int)context.Value);
         }
 
         return true;
@@ -118,7 +111,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
             Order = (int?)attributeData.ConstructorArguments[2].Value ?? 0
         };
 
-        _events.Add(eventData);
+        Events.Add(eventData);
         return true;
     }
 
@@ -138,20 +131,15 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         fieldData.TryResolveField(fieldSymbol);
         fieldData.ResolveAttributes(fieldSymbol);
 
-        _fields.Add(fieldData);
+        Fields.Add(fieldData);
 
         return true;
     }
 
-    public void FinalizeStruct()
+    public static ComponentData SetIndex(ComponentData data, int i)
     {
-        Fields = _fields.ToImmutableArray();
-        ComponentAddedContexts = _componentAddedContexts.ToImmutableArray();
-        Events = _events.ToImmutableArray();
-
-        _fields.Clear();
-        _componentAddedContexts.Clear();
-        _events.Clear();
+        data.Index = i;
+        return data;
     }
 
     public override string ToString()
@@ -170,7 +158,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
             stringBuilder.AppendLine($"   {nameof(Fields)}:");
 
-            if (Fields.Length > 0)
+            if (Fields.Count > 0)
             {
                 foreach (var fieldData in Fields)
                 {
@@ -182,7 +170,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
                 stringBuilder.AppendLine($"      This Component doesn't have any fields.");
             }
 
-            if (Events.Length > 0)
+            if (Events.Count > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(Events)}:");
                 foreach (var eventData in Events)
@@ -191,7 +179,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
                 }
             }
 
-            if (ComponentAddedContexts.Length > 0)
+            if (ComponentAddedContexts.Count > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(ComponentAddedContexts)}:");
                 foreach (var contexts in ComponentAddedContexts)

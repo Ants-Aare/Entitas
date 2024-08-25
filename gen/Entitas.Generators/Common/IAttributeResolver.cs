@@ -16,8 +16,14 @@ public static class AttributeResolverExtension
         foreach (var attributeData in attributeDatas)
         {
             ct.ThrowIfCancellationRequested();
-            if (attributeResolver.TryResolveAttribute(attributeData) == false)
-                return false;
+            try
+            {
+                if (attributeResolver.TryResolveAttribute(attributeData) == false)
+                    return false;
+            }
+            catch
+            {
+            }
         }
 
         return true;

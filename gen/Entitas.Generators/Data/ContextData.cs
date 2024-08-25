@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -10,7 +10,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFinalizable
+public struct ContextData : IClassDeclarationResolver, IAttributeResolver
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -19,11 +19,9 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
     public string FullPrefix { get; private set; }
     public string Prefix { get; private set; }
 
-    public ImmutableArray<int> Components { get; private set; }
-    public ImmutableArray<int> Systems { get; private set; }
-
-    readonly HashSet<int> _components = new();
-    readonly HashSet<int> _systems = new();
+    public readonly HashSet<int> Components = new();
+    public readonly HashSet<int> Systems = new();
+    public int Index;
 
     public ContextData()
     {
@@ -32,8 +30,6 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         Name = null!;
         FullPrefix = null!;
         Prefix = null!;
-        Components = default;
-        Systems = default;
     }
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
@@ -59,8 +55,8 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         FullName = symbol.ToDisplayString();
         Name = symbol.Name;
 
-        FullPrefix = FullName.Replace(".", string.Empty).RemoveSuffix("Component");
-        Prefix = Name.RemoveSuffix("Component");
+        FullPrefix = FullName.Replace(".", string.Empty).RemoveSuffix("Context");
+        Prefix = Name.RemoveSuffix("Context");
         return true;
     }
 
@@ -80,7 +76,7 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         foreach (var value in values)
         {
             if (value.Value is not null)
-                _components.Add((int)value.Value);
+                Components.Add((int)value.Value);
         }
 
         return true;
@@ -92,52 +88,57 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         foreach (var value in values)
         {
             if (value.Value is not null)
-                _systems.Add((int)value.Value);
+                Systems.Add((int)value.Value);
         }
 
         return true;
     }
 
-    public void FinalizeStruct()
-    {
-        Components = _components.ToImmutableArray();
-        Systems = _systems.ToImmutableArray();
-
-        _components.Clear();
-        _systems.Clear();
-    }
-
     public override string ToString()
     {
-        var stringBuilder = new StringBuilder("ContextData:\n")
-            .AppendLine($"   {nameof(Namespace)}: {Namespace}")
-            .AppendLine($"   {nameof(FullName)}: {FullName}")
-            .AppendLine($"   {nameof(Name)}: {Name}")
-            .AppendLine($"   {nameof(FullPrefix)}: {FullPrefix}")
-            .AppendLine($"   {nameof(Prefix)}: {Prefix}");
-
-        stringBuilder.AppendLine($"   {nameof(Components)}:");
-        if (Components.Length != 0)
+        var stringBuilder = new StringBuilder("ContextData:\n");
+        try
         {
-            foreach (var component in Components)
-            {
-                stringBuilder.AppendLine($"      {component}");
-            }
-        }
-        else
-            stringBuilder.AppendLine("This Context has no Components declared on it.");
+            stringBuilder
+                .AppendLine($"   {nameof(Namespace)}: {Namespace}")
+                .AppendLine($"   {nameof(FullName)}: {FullName}")
+                .AppendLine($"   {nameof(Name)}: {Name}")
+                .AppendLine($"   {nameof(FullPrefix)}: {FullPrefix}")
+                .AppendLine($"   {nameof(Prefix)}: {Prefix}");
 
-        stringBuilder.AppendLine($"   {nameof(Systems)}:");
-        if (Systems.Length != 0)
-        {
-            foreach (var system in Systems)
+            stringBuilder.AppendLine($"   {nameof(Components)}:");
+            if (Components.Count != 0)
             {
-                stringBuilder.AppendLine($"      {system}");
+                foreach (var component in Components)
+                {
+                    stringBuilder.AppendLine($"      {component}");
+                }
             }
+            else
+                stringBuilder.AppendLine("This Context has no Components declared on it.");
+
+            stringBuilder.AppendLine($"   {nameof(Systems)}:");
+            if (Systems.Count != 0)
+            {
+                foreach (var system in Systems)
+                {
+                    stringBuilder.AppendLine($"      {system}");
+                }
+            }
+            else
+                stringBuilder.AppendLine("This Context has no Systems declared on it.");
         }
-        else
-            stringBuilder.AppendLine("This Context has no Systems declared on it.");
+        catch (Exception e)
+        {
+            stringBuilder.AppendLine(e.ToString());
+        }
 
         return stringBuilder.ToString();
+    }
+
+    public static ContextData SetIndex(ContextData data, int i)
+    {
+        data.Index = i;
+        return data;
     }
 }
