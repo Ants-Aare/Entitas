@@ -32,13 +32,6 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .CreateSyntaxProvider(ContextData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ContextData>)
             .RemoveEmptyValues();
 
-        // var sortedComponents = componentDatas
-        //     .Collect()
-        //     .Sort();
-        // var sortedContextDatas = contextDatas
-        //     .Collect()
-        //     .Sort();
-
         // var allComponents = componentDatas
         //     .Select((x, _) => x.Prefix)
         //     .Collect()
@@ -49,26 +42,27 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         //     .Collect()
         //     .Sort();
 
-        // var allComponents = sortedComponents.Select((x, _) => x.Select(y => y.Prefix).ToList());
-        // var allContexts = contextDatas.Select((x, _) => x.Select(y => y.Prefix).ToImmutableArray());
+        // var allComponents = sortedComponents.Select((x, _) => x.Select(y => y.Prefix).ToImmutableArray());
+        // var allContexts = sortedContextDatas.Select((x, _) => x.Select(y => y.Prefix).ToImmutableArray());
 
-        // var ComponentsWithContexts = sortedComponents.SelectManyWithIndex(ComponentData.SetIndex)
-        //     .Combine(sortedContextDatas)
-        //     .Select(CombineComponentsWithContexts);
+        var ComponentsWithContexts = componentDatas
+            .Combine(contextDatas.Collect())
+            .Select(CombineComponentsWithContexts);
 
-        // var ContextsWithComponents = sortedContextDatas.SelectManyWithIndex(ContextData.SetIndex)
-        //     .Combine(sortedComponents)
+        var ComponentContextPair = ComponentsWithContexts.SelectMany((x, _) => x.ContextDatas.Select(ContextData => (x.ComponentData, ContextData)));
+        //
+        // var ContextsWithComponents = contextDatas
+        //     .Combine(componentDatas.Collect())
         //     .Select(CombineContextsWithComponents);
 
-        // initContext.RegisterSourceOutput(ComponentsWithContexts, GenerateInterfaceExtensionsOutput);
         initContext.RegisterSourceOutput(componentDatas, GenerateComponentOutput);
-        // initContext.RegisterSourceOutput(ComponentsWithContexts, GenerateEntityExtensionsOutput);
+        initContext.RegisterSourceOutput(ComponentContextPair, GenerateEntityExtensionsOutput);
         // initContext.RegisterSourceOutput(groupDatas, GenerateGroupOutput);
         // initContext.RegisterSourceOutput(systemDatas, GenerateSystemOutput);
 
         initContext.RegisterSourceOutput(contextDatas, GenerateContextOutput);
         initContext.RegisterSourceOutput(contextDatas, GenerateEntityOutput);
-
+        initContext.RegisterSourceOutput(ComponentsWithContexts, GenerateInterfaceExtensionsOutput);
 
         // initContext.RegisterSourceOutput(allComponents, GenerateComponentsEnumOutput);
         // initContext.RegisterSourceOutput(allContexts, GenerateContextsEnumOutput);
@@ -77,21 +71,24 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
     ComponentWithContexts CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
     {
         var contexts = new List<ContextData>();
+
+
         foreach (var contextData in data.contextDatas)
         {
-            if (data.componentData.ComponentAddedContexts.Contains(contextData.Index))
+            if (data.componentData.ComponentAddedContexts.Contains(contextData.Name))
             {
                 contexts.Add(contextData);
                 continue;
             }
 
-            if (contextData.Components.Contains(data.componentData.Index))
+            if (contextData.Components.Contains(data.componentData.Name))
             {
                 contexts.Add(contextData);
+                continue;
             }
         }
 
-        return new ComponentWithContexts(data.componentData, contexts);
+        return new ComponentWithContexts(data.componentData, contexts.ToImmutableArray());
     }
 
     ContextWithComponents CombineContextsWithComponents((ContextData contextData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
@@ -163,15 +160,20 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            var methodSignature = data.Fields.Count == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
-            var methodArguments = data.Fields.Count == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.ValidLowerName}"));
-            var ctorAssignments = data.Fields.Count == 0 ? string.Empty : string.Join("\n", data.Fields.Select(static field => $"{field.Name} = {field.ValidLowerName};"));
-            var createAssignments = data.Fields.Count == 0 ? string.Empty : string.Join("\n", data.Fields.Select(static field => $"component.{field.Name} = {field.ValidLowerName};"));
-            var destroyAssignments = data.Fields.Count == 0 ? string.Empty : string.Join("\n", data.Fields.Select(static field => $"component.{field.Name} = default;"));
+            var methodSignature = data.Fields.Length == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
+            var methodArguments = data.Fields.Length == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.ValidLowerName}"));
+            var ctorAssignments = data.Fields.Length == 0 ? string.Empty : string.Join("\n", data.Fields.Select(static field => $"this.{field.Name} = {field.ValidLowerName};"));
+            var createAssignments = data.Fields.Length == 0 ? string.Empty : string.Join("\n", data.Fields.Select(static field => $"component.{field.Name} = {field.ValidLowerName};"));
+            var destroyAssignments = data.Fields.Length == 0 ? string.Empty : string.Join("\n", data.Fields.Select(static field => $"component.{field.Name} = default;"));
 
             var content = $$"""
                             public sealed partial class {{data.Name}}
                             {
+                                public const string Name = "{{data.Name}}";
+                                public const string Added = "{{data.Prefix}}Added";
+                                public const string Removed = "{{data.Prefix}}Removed";
+                                public const string AddedOrRemoved = "{{data.Prefix}}AddedOrRemoved";
+
                                 static readonly System.Collections.Generic.Stack<{{data.Name}}> ComponentPool = new ();
 
                                 {{data.Name}}({{methodSignature}})
@@ -217,121 +219,136 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         context.AddSource(FileNameHint(data.Namespace, data.Name), stringBuilder.ToString());
     }
 
-    void GenerateEntityExtensionsOutput(SourceProductionContext context, ComponentWithContexts componentWithContexts)
+    void GenerateEntityExtensionsOutput(SourceProductionContext context, (ComponentData ComponentData, ContextData ContextData) value)
     {
-        var data = componentWithContexts.ComponentData;
-        foreach (var contextData in componentWithContexts.ContextDatas)
+        var componentData = value.ComponentData;
+        var contextData = value.ContextData;
+
+        var entityExtensions = new StringBuilder()
+            .AppendGenerationWarning(nameof(GenerateComponentOutput));
+
+        try
         {
-            var entityExtensions = new StringBuilder()
-                .AppendGenerationWarning(nameof(GenerateComponentOutput));
-
-            try
-            {
-                var methodSignature = data.Fields.Count == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
-                var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
-                var methodArguments = data.Fields.Count == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.ValidLowerName}"));
-                var equalityComparer = data.Fields.Count == 0 ? string.Empty : string.Join(" && ", data.Fields.Select(field => $"entity.{data.Name}.{field.Name} == {field.ValidLowerName}"));
+            var methodSignature = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
+            var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
+            var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
+            var equalityComparer = componentData.Fields.Length == 0 ? string.Empty : string.Join(" && ", componentData.Fields.Select(field => $"entity.{componentData.Name}.{field.Name} == {field.ValidLowerName}"));
 
 
-                var entityExtensionsContent =
-                    $$"""
-                      public static class {{contextData.Prefix}}Entity{{data.Prefix}}Extensions
+            var entityExtensionsContent =
+                $$"""
+                  public static class {{contextData.Prefix}}Entity{{componentData.Prefix}}Extensions
+                  {
+                      public static bool Has{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity) => entity.{{componentData.Name}} != null;
+
+                      public static {{componentData.Name}} Get{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity) => entity.{{componentData.Name}};
+
+                      public static {{contextData.Prefix}}Entity Set{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
                       {
-                          public static bool Has{{data.Prefix}}(this {{contextData.Prefix}}Entity entity) => entity.{{data.Name}} != null;
-
-                          public static {{data.Name}} Get{{data.Prefix}}(this {{contextData.Prefix}}Entity entity) => entity.{{data.Name}};
-
-                          public static {{contextData.Prefix}}Entity Set{{data.Prefix}}(this {{contextData.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
+                          if (!entity.IsEnabled)
                           {
-                              if (!entity.IsEnabled)
-                              {
-                                  return entity;
-                              }
-
-                              if (entity.{{data.Name}} == null)
-                              {
-                                  entity.{{data.Name}} = {{data.Name}}.CreateComponent(value);
-                                  return entity;
-                              }
-
-                              if ({{equalityComparer}})
-                              {
-                                  return entity;
-                              }
-
-                              var previousComponent = entity.{{data.Name}};
-                              entity.{{data.Name}} = {{data.Name}}.CreateComponent({{methodArguments}});
-
-                              {{data.Name}}.DestroyComponent(previousComponent);
                               return entity;
                           }
 
-                          public static {{contextData.Prefix}}Entity Remove{{data.Prefix}}(this {{contextData.Prefix}}Entity entity)
+                          if (entity.{{componentData.Name}} == null)
                           {
-                              if (!entity.IsEnabled)
-                              {
-                                  return entity;
-                              }
-
-                              if (entity.{{data.Name}} == null)
-                              {
-                                  return entity;
-                              }
-
-                              var previousComponent = entity.{{data.Name}};
-                              entity.{{data.Name}} = null;
-
-                              {{data.Name}}.DestroyComponent(previousComponent);
-
+                              entity.{{componentData.Name}} = {{componentData.Name}}.CreateComponent(value);
                               return entity;
                           }
+
+                          if ({{equalityComparer}})
+                          {
+                              return entity;
+                          }
+
+                          var previousComponent = entity.{{componentData.Name}};
+                          entity.{{componentData.Name}} = {{componentData.Name}}.CreateComponent({{methodArguments}});
+
+                          {{componentData.Name}}.DestroyComponent(previousComponent);
+                          return entity;
                       }
-                      """;
 
-                using (new NamespaceBuilder(entityExtensions, data.Namespace))
-                {
-                    entityExtensions.AppendLine(entityExtensionsContent);
-                }
-            }
-            catch (Exception e)
+                      public static {{contextData.Prefix}}Entity Remove{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity)
+                      {
+                          if (!entity.IsEnabled)
+                          {
+                              return entity;
+                          }
+
+                          if (entity.{{componentData.Name}} == null)
+                          {
+                              return entity;
+                          }
+
+                          var previousComponent = entity.{{componentData.Name}};
+                          entity.{{componentData.Name}} = null;
+
+                          {{componentData.Name}}.DestroyComponent(previousComponent);
+
+                          return entity;
+                      }
+                  }
+                  """;
+
+            using (new NamespaceBuilder(entityExtensions, componentData.Namespace))
             {
-                entityExtensions.AppendLine(e.ToString());
+                entityExtensions.AppendLine(entityExtensionsContent);
             }
-
-            context.AddSource(FileNameHint(data.Namespace, $"{contextData.Prefix}Entity{data.Prefix}Extensions"), entityExtensions.ToString());
         }
+        catch (Exception e)
+        {
+            entityExtensions.AppendLine(e.ToString());
+        }
+
+        context.AddSource(FileNameHint(componentData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), entityExtensions.ToString());
     }
 
     void GenerateInterfaceExtensionsOutput(SourceProductionContext context, ComponentWithContexts componentWithContexts)
     {
         var data = componentWithContexts.ComponentData;
+        var contextDatas = componentWithContexts.ContextDatas;
+
         var methodSignature = string.Join(", ", data.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
         var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
+        var methodArguments = data.Fields.Length == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.ValidLowerName}"));
+        var methodArgumentsWithLeadingComma = methodArguments == string.Empty ? string.Empty : $", {methodArguments}";
 
         var interfaceExtensions = new StringBuilder()
             .AppendGenerationWarning(nameof(GenerateComponentOutput));
 
+        string hasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Has{data.Prefix}({x.Prefix}Entity),"));
+        string getComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Get{data.Prefix}({x.Prefix}Entity),"));
+        string setComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Set{data.Prefix}({x.Prefix}Entity{methodArgumentsWithLeadingComma}),"));
+        string removeComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Remove{data.Prefix}({x.Prefix}Entity),"));
         var interfaceExtensionsContent =
             $$"""
-              public static class I{{data.Prefix}}Extensions
-              {
-                  public static bool Has{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
-                  {
-                      return true;
-                  }
-                  public static {{data.Name}} Get{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
-                  {
-                      return default;
-                  }
-                  public static I{{data.Prefix}}Entity Set{{data.Prefix}}(this I{{data.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
-                  {
-                      return entity;
-                  }
-                  public static I{{data.Prefix}}Entity Remove{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
-                  {
-                      return entity;
-                  }
-              }
+                public static class I{{data.Prefix}}Extensions
+                {
+                    public static bool HasAsset(this I{{data.Prefix}}Entity entity)
+                    => entity switch
+                    {
+                {{hasComponent}}
+                        _ => default
+                    };
+                    public static {{data.Name}} Get{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
+                    => entity switch
+                    {
+                {{getComponent}}
+                        _ => default
+                    };
+                    public static I{{data.Prefix}}Entity Set{{data.Prefix}}(this I{{data.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
+                    => entity switch
+                    {
+                {{setComponent}}
+                        _ => default
+                    };
+                    public static I{{data.Prefix}}Entity Remove{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
+                    => entity switch
+                    {
+                {{removeComponent}}
+                        _ => default
+                    };
+                }
               """;
 
         using (new NamespaceBuilder(interfaceExtensions, data.Namespace))
@@ -343,18 +360,21 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         context.AddSource(FileNameHint(data.Namespace, $"I{data.Prefix}EntityExtensions"), interfaceExtensions.ToString());
     }
 
-    void GenerateEntityOutput(SourceProductionContext context, ContextData data)
+    void GenerateEntityOutput(SourceProductionContext context, ContextWithComponents value)
     {
+        var contextData = value.ContextData;
+        var componentDatas = value.ComponentDatas;
+
         var stringBuilder = new StringBuilder();
         try
         {
             var content = $$"""
-                            public class {{data.Prefix}}Entity : Entitas.EntityBase
+                            public class {{contextData.Prefix}}Entity : Entitas.EntityBase
                             {
-                                public {{data.Name}} Context { get; private set; }
+                                public {{contextData.Name}} Context { get; private set; }
 
-                                internal {{data.Prefix}}Entity(){}
-                                public void OnCreated(int id, {{data.Name}} context)
+                                private {{contextData.Prefix}}Entity(){}
+                                public void OnCreated(int id, {{contextData.Name}} context)
                                 {
                                     Id = id;
                                     Context = context;
@@ -373,7 +393,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
             stringBuilder.AppendGenerationWarning(nameof(GenerateContextOutput));
 
-            using (new NamespaceBuilder(stringBuilder, data.Namespace))
+            using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
                 stringBuilder.AppendLine(content);
             }
@@ -383,7 +403,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             stringBuilder.AppendLine(e.ToString());
         }
 
-        context.AddSource(FileNameHint(data.Namespace, $"{data.Prefix}Entity"), stringBuilder.ToString());
+        context.AddSource(FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
     }
 
     void GenerateContextOutput(SourceProductionContext context, ContextData data)
@@ -394,9 +414,10 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             var content = $$"""
                             public sealed partial class {{data.Name}} : Entitas.ContextBase
                             {
+                                public const string Name = "{{data.Name}}";
                                 public static readonly Entitas.ContextInfo ContextInfo = new Entitas.ContextInfo("{{data.Name}}",
-                                    new[] { },
-                                    new[] { });
+                                    null,
+                                    null);
 
                                 static int _creationIndex;
                                 static readonly System.Collections.Generic.Stack<{{data.Prefix}}Entity> EntityPool;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -10,7 +11,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ContextData : IClassDeclarationResolver, IAttributeResolver
+public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -19,9 +20,11 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
     public string FullPrefix { get; private set; }
     public string Prefix { get; private set; }
 
-    public readonly HashSet<int> Components = new();
-    public readonly HashSet<int> Systems = new();
-    public int Index;
+    public ImmutableArray<string> Components = ImmutableArray<string>.Empty;
+    public ImmutableArray<string> Systems = ImmutableArray<string>.Empty;
+
+    readonly HashSet<string> _components = new();
+    readonly HashSet<string> _systems = new();
 
     public ContextData()
     {
@@ -55,7 +58,7 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
         FullName = symbol.ToDisplayString();
         Name = symbol.Name;
 
-        FullPrefix = FullName.Replace(".", string.Empty).RemoveSuffix("Context");
+        FullPrefix = FullName.RemoveSuffix("Context");
         Prefix = Name.RemoveSuffix("Context");
         return true;
     }
@@ -76,9 +79,8 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
         foreach (var value in values)
         {
             if (value.Value is not null)
-                Components.Add((int)value.Value);
+                _components.Add((string)value.Value);
         }
-
         return true;
     }
 
@@ -88,10 +90,16 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
         foreach (var value in values)
         {
             if (value.Value is not null)
-                Systems.Add((int)value.Value);
+                _systems.Add((string)value.Value);
         }
-
         return true;
+    }
+
+    public ContextData Finalise()
+    {
+        Components = _components.ToImmutableArray();
+        Systems = _systems.ToImmutableArray();
+        return this;
     }
 
     public override string ToString()
@@ -107,7 +115,7 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
                 .AppendLine($"   {nameof(Prefix)}: {Prefix}");
 
             stringBuilder.AppendLine($"   {nameof(Components)}:");
-            if (Components.Count != 0)
+            if (Components.Length != 0)
             {
                 foreach (var component in Components)
                 {
@@ -118,7 +126,7 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
                 stringBuilder.AppendLine("This Context has no Components declared on it.");
 
             stringBuilder.AppendLine($"   {nameof(Systems)}:");
-            if (Systems.Count != 0)
+            if (Systems.Length != 0)
             {
                 foreach (var system in Systems)
                 {
@@ -136,9 +144,24 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver
         return stringBuilder.ToString();
     }
 
-    public static ContextData SetIndex(ContextData data, int i)
+    public bool Equals(ContextData other)
     {
-        data.Index = i;
-        return data;
+        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && FullName == other.FullName;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is ContextData other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = Components.GetHashCode();
+            hashCode = (hashCode * 397) ^ Systems.GetHashCode();
+            hashCode = (hashCode * 397) ^ FullName.GetHashCode();
+            return hashCode;
+        }
     }
 }

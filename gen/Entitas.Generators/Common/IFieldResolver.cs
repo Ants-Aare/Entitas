@@ -11,7 +11,7 @@ public interface IFieldResolver
 
 public static class FieldResolverExtension
 {
-    public static bool ResolveFields(this IFieldResolver attributeResolver, INamedTypeSymbol namedTypeSymbol, CancellationToken ct)
+    public static IFieldResolver ResolveFields(this IFieldResolver fieldResolver, INamedTypeSymbol namedTypeSymbol, CancellationToken ct)
     {
         var memberSymbols = namedTypeSymbol.GetMembers();
         foreach (var symbol in memberSymbols)
@@ -23,11 +23,11 @@ public static class FieldResolverExtension
             if(!symbol.CanBeReferencedByName || symbol is not IFieldSymbol fieldSymbol)
                 continue;
 
-            var success = attributeResolver.TryResolveField(fieldSymbol);
+            var success = fieldResolver.TryResolveField(fieldSymbol);
             if (!success)
-                return false;
+                return fieldResolver;
         }
 
-        return true;
+        return fieldResolver;
     }
 }

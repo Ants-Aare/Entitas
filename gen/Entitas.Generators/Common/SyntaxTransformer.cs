@@ -22,11 +22,14 @@ public static class SyntaxTransformer
                 return null;
 
             if (instance is IAttributeResolver attributeResolver)
-                attributeResolver.ResolveAttributes(namedTypeSymbol, ct);
+                instance = (T)attributeResolver.ResolveAttributes(namedTypeSymbol, ct);
             // if (instance is IConstructorResolver constructorResolver)
                 // constructorResolver.ResolveConstructors(namedTypeSymbol, ct);
             if (instance is IFieldResolver fieldResolver)
-                fieldResolver.ResolveFields(namedTypeSymbol, ct);
+                instance = (T)fieldResolver.ResolveFields(namedTypeSymbol, ct);
+
+            if (instance is IFinalisable<T> finalisable)
+                instance = finalisable.Finalise();
 
             return instance;
         }
@@ -35,4 +38,10 @@ public static class SyntaxTransformer
             return null;
         }
     }
+}
+
+public interface IFinalisable<T>
+    where T : struct, IClassDeclarationResolver
+{
+    public T Finalise();
 }

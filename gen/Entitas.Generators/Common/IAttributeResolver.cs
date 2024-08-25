@@ -10,7 +10,7 @@ public interface IAttributeResolver
 
 public static class AttributeResolverExtension
 {
-    public static bool ResolveAttributes(this IAttributeResolver attributeResolver, ISymbol symbol, CancellationToken ct = default)
+    public static IAttributeResolver ResolveAttributes(this IAttributeResolver attributeResolver, ISymbol symbol, CancellationToken ct = default)
     {
         var attributeDatas = symbol.GetAttributes();
         foreach (var attributeData in attributeDatas)
@@ -18,14 +18,13 @@ public static class AttributeResolverExtension
             ct.ThrowIfCancellationRequested();
             try
             {
-                if (attributeResolver.TryResolveAttribute(attributeData) == false)
-                    return false;
+                attributeResolver.TryResolveAttribute(attributeData);
             }
             catch
             {
             }
         }
 
-        return true;
+        return attributeResolver;
     }
 }

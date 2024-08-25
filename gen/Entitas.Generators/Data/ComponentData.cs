@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -10,7 +10,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IEquatable<ComponentData>
+public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IFinalisable<ComponentData>, IEquatable<ComponentData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -18,12 +18,12 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     public string FullPrefix { get; private set; }
     public string Prefix { get; private set; }
 
-    public List<FieldData> Fields { get; private set; } = new();
-    public HashSet<ComponentEventData> Events { get; private set; } = new();
-    public HashSet<int> ComponentAddedContexts { get; private set; } = new();
+    public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
+    public ImmutableArray<ComponentEventData> Events { get; private set; } = ImmutableArray<ComponentEventData>.Empty;
+    public ImmutableArray<string> ComponentAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
+
     public bool IsUnique { get; private set; }
-    public CleanupMode CleanupMode { get; private set; }
-    public int Index;
+    public CleanupMode? CleanupMode { get; private set; }
 
     public ComponentData()
     {
@@ -33,7 +33,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         FullPrefix = null!;
         Prefix = null!;
         IsUnique = false;
-        CleanupMode = CleanupMode.None;
+        CleanupMode = null;
     }
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
@@ -59,8 +59,9 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         FullName = symbol.ToDisplayString();
         Name = symbol.Name;
 
-        FullPrefix = FullName.Replace(".", string.Empty).RemoveSuffix("Component");
+        FullPrefix = FullName.RemoveSuffix("Component");
         Prefix = Name.RemoveSuffix("Component");
+        ComponentAddedContexts = ComponentAddedContexts.Add("Hey There");
         return true;
     }
 
@@ -79,26 +80,21 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     bool TryResolveComponentAttribute(AttributeData attributeData)
     {
-        IsUnique = (bool?)attributeData.ConstructorArguments.FirstOrDefault().Value ?? false;
+        ComponentAddedContexts = ComponentAddedContexts.Add("Is Unique");
+        IsUnique = (bool?)attributeData.ConstructorArguments[0].Value ?? false;
         return true;
     }
 
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
-        var contexts = attributeData.ConstructorArguments.FirstOrDefault().Values;
-        foreach (var context in contexts)
-        {
-            if (context.Value == null)
-                continue;
-            ComponentAddedContexts.Add((int)context.Value);
-        }
-
+        var typedConstants = attributeData.ConstructorArguments[0].Values;
+        ComponentAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
         return true;
     }
 
     bool TryResolveCleanupAttribute(AttributeData attributeData)
     {
-        CleanupMode = (CleanupMode)(attributeData.ConstructorArguments.FirstOrDefault().Value ?? CleanupMode.None);
+        CleanupMode = (CleanupMode)(attributeData.ConstructorArguments[0].Value ?? CleanupMode == Data.CleanupMode.RemoveComponent);
         return true;
     }
 
@@ -111,7 +107,8 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
             Order = (int?)attributeData.ConstructorArguments[2].Value ?? 0
         };
 
-        Events.Add(eventData);
+        if (!Events.Contains(eventData))
+            Events = Events.Add(eventData);
         return true;
     }
 
@@ -131,15 +128,15 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         fieldData.TryResolveField(fieldSymbol);
         fieldData.ResolveAttributes(fieldSymbol);
 
-        Fields.Add(fieldData);
+        if (!Fields.Contains(fieldData))
+            Fields = Fields.Add(fieldData);
 
         return true;
     }
 
-    public static ComponentData SetIndex(ComponentData data, int i)
+    public ComponentData Finalise()
     {
-        data.Index = i;
-        return data;
+        return this;
     }
 
     public override string ToString()
@@ -158,7 +155,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
             stringBuilder.AppendLine($"   {nameof(Fields)}:");
 
-            if (Fields.Count > 0)
+            if (Fields.Length > 0)
             {
                 foreach (var fieldData in Fields)
                 {
@@ -170,7 +167,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
                 stringBuilder.AppendLine($"      This Component doesn't have any fields.");
             }
 
-            if (Events.Count > 0)
+            if (Events.Length > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(Events)}:");
                 foreach (var eventData in Events)
@@ -179,7 +176,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
                 }
             }
 
-            if (ComponentAddedContexts.Count > 0)
+            if (ComponentAddedContexts.Length > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(ComponentAddedContexts)}:");
                 foreach (var contexts in ComponentAddedContexts)
@@ -198,7 +195,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public bool Equals(ComponentData other)
     {
-        return Namespace == other.Namespace && FullName == other.FullName && Name == other.Name && FullPrefix == other.FullPrefix && Prefix == other.Prefix && Fields.Equals(other.Fields) && Events.Equals(other.Events) && ComponentAddedContexts.Equals(other.ComponentAddedContexts) && IsUnique == other.IsUnique && CleanupMode == other.CleanupMode;
+        return FullName == other.FullName && Fields.Equals(other.Fields) && Events.Equals(other.Events) && ComponentAddedContexts.Equals(other.ComponentAddedContexts) && IsUnique == other.IsUnique && CleanupMode == other.CleanupMode;
     }
 
     public override bool Equals(object? obj)
@@ -210,16 +207,12 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     {
         unchecked
         {
-            var hashCode = (Namespace != null ? Namespace.GetHashCode() : 0);
-            hashCode = (hashCode * 397) ^ FullName.GetHashCode();
-            hashCode = (hashCode * 397) ^ Name.GetHashCode();
-            hashCode = (hashCode * 397) ^ FullPrefix.GetHashCode();
-            hashCode = (hashCode * 397) ^ Prefix.GetHashCode();
+            var hashCode = FullName.GetHashCode();
             hashCode = (hashCode * 397) ^ Fields.GetHashCode();
             hashCode = (hashCode * 397) ^ Events.GetHashCode();
             hashCode = (hashCode * 397) ^ ComponentAddedContexts.GetHashCode();
             hashCode = (hashCode * 397) ^ IsUnique.GetHashCode();
-            hashCode = (hashCode * 397) ^ (int)CleanupMode;
+            hashCode = (hashCode * 397) ^ CleanupMode.GetHashCode();
             return hashCode;
         }
     }
@@ -227,19 +220,18 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
 public enum CleanupMode
 {
-    RemoveComponent,
-    DestroyEntity,
-    None,
+    RemoveComponent = 0,
+    DestroyEntity = 1,
 }
 
 public enum EventTarget
 {
-    Any,
-    Self
+    Any = 0,
+    Self = 1,
 }
 
 public enum EventType
 {
-    Added,
-    Removed
+    Added = 0,
+    Removed = 1,
 }
