@@ -27,7 +27,7 @@ public struct GroupData : IClassDeclarationResolver, IAttributeResolver
     {
         throw new System.NotImplementedException();
     }
-    public bool TryResolveClassDeclaration(INamedTypeSymbol namedTypeSymbol)
+    public bool TryResolveClassDeclaration(INamedTypeSymbol symbol)
     {
         throw new System.NotImplementedException();
     }

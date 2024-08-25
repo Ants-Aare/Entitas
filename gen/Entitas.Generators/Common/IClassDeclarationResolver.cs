@@ -5,5 +5,5 @@ namespace Entitas.Generators.Common;
 
 public interface IClassDeclarationResolver
 {
-    public bool TryResolveClassDeclaration(INamedTypeSymbol namedTypeSymbol);
+    public bool TryResolveClassDeclaration(INamedTypeSymbol symbol);
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Entitas.Generators.Common;
 using Microsoft.CodeAnalysis;
@@ -6,7 +7,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct FieldData : IAttributeResolver, IFieldResolver
+public struct FieldData : IAttributeResolver, IFieldResolver, IEquatable<FieldData>
 {
     public string TypeName { get; private set; }
     public string Name { get; private set; }
@@ -54,7 +55,28 @@ public struct FieldData : IAttributeResolver, IFieldResolver
 
     public override string ToString()
     {
-        return $"FieldData: Type:{TypeName} Name:{Name} {ValidLowerName} {IndexType}";
+        return $"FieldData: {TypeName} {Name} {ValidLowerName} {IndexType}";
+    }
+
+    public bool Equals(FieldData other)
+    {
+        return TypeName == other.TypeName && Name == other.Name && IndexType == other.IndexType;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is FieldData other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = TypeName.GetHashCode();
+            hashCode = (hashCode * 397) ^ Name.GetHashCode();
+            hashCode = (hashCode * 397) ^ (int)IndexType;
+            return hashCode;
+        }
     }
 }
 

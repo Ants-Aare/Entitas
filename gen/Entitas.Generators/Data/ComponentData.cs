@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -9,7 +11,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver
+public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IFinalizable, IEquatable<ComponentData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -17,10 +19,13 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     public string FullPrefix { get; private set; }
     public string Prefix { get; private set; }
 
-    public List<FieldData> Fields { get; private set; } = new();
+    public ImmutableArray<FieldData> Fields { get; private set; }
+    public ImmutableArray<ComponentEventData> Events { get; private set; }
+    public ImmutableArray<int> ComponentAddedContexts { get; private set; }
 
-    public List<ComponentEventData> Events { get; private set; } = new();
-    public List<int> ComponentAddedContexts { get; private set; } = new();
+    List<FieldData> _fields = new();
+    HashSet<ComponentEventData> _events = new();
+    HashSet<int> _componentAddedContexts = new();
     public bool IsUnique { get; private set; }
     public CleanupMode CleanupMode { get; private set; }
 
@@ -31,6 +36,9 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         Name = null!;
         FullPrefix = null!;
         Prefix = null!;
+        Fields = ImmutableArray<FieldData>.Empty;
+        Events = ImmutableArray<ComponentEventData>.Empty;
+        ComponentAddedContexts = ImmutableArray<int>.Empty;
         IsUnique = false;
         CleanupMode = CleanupMode.None;
     }
@@ -68,11 +76,18 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         return attributeData switch
         {
             { AttributeClass.Name: UniqueAttributeName } => TryResolveUniqueAttribute(attributeData),
+            { AttributeClass.Name: ComponentAttributeName } => TryResolveComponentAttribute(attributeData),
             { AttributeClass.Name: EventAttributeName } => TryResolveEventAttribute(attributeData),
             { AttributeClass.Name: CleanupAttributeName } => TryResolveCleanupAttribute(attributeData),
             { AttributeClass.Name: AddToContextAttributeName } => TryResolveAddToContextAttribute(attributeData),
             _ => true
         };
+    }
+
+    bool TryResolveComponentAttribute(AttributeData attributeData)
+    {
+        IsUnique = (bool?)attributeData.ConstructorArguments.FirstOrDefault().Value ?? false;
+        return true;
     }
 
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
@@ -82,7 +97,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         {
             if (context.Value == null)
                 continue;
-            ComponentAddedContexts.Add((int)context.Value);
+            _componentAddedContexts.Add((int)context.Value);
         }
 
         return true;
@@ -96,30 +111,18 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     bool TryResolveEventAttribute(AttributeData attributeData)
     {
-        var eventData = new ComponentEventData();
-        foreach (var constructorArgument in attributeData.NamedArguments)
+        var eventData = new ComponentEventData
         {
-            switch (constructorArgument.Key)
-            {
-                case ConstructorNameEventTarget:
-                    if (constructorArgument.Value.Value == null)
-                        return false;
-                    eventData.EventTarget = (EventTarget)constructorArgument.Value.Value;
-                    break;
-                case ConstructorNameEventType:
-                    eventData.EventType = (EventType)(constructorArgument.Value.Value ?? EventType.Added);
-                    break;
-                case ConstructorNameOrder:
-                    eventData.Order = (int?)constructorArgument.Value.Value ?? 0;
-                    break;
-            }
-        }
+            EventTarget = (EventTarget)(attributeData.ConstructorArguments[0].Value ?? EventTarget.Any),
+            EventType = (EventType)(attributeData.ConstructorArguments[1].Value ?? EventType.Added),
+            Order = (int?)attributeData.ConstructorArguments[2].Value ?? 0
+        };
 
-        Events.Add(eventData);
+        _events.Add(eventData);
         return true;
     }
 
-    bool TryResolveUniqueAttribute(AttributeData attributeData)
+    bool TryResolveUniqueAttribute(AttributeData _)
     {
         IsUnique = true;
         return true;
@@ -135,56 +138,102 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         fieldData.TryResolveField(fieldSymbol);
         fieldData.ResolveAttributes(fieldSymbol);
 
-        Fields.Add(fieldData);
+        _fields.Add(fieldData);
 
         return true;
     }
 
+    public void FinalizeStruct()
+    {
+        Fields = _fields.ToImmutableArray();
+        ComponentAddedContexts = _componentAddedContexts.ToImmutableArray();
+        Events = _events.ToImmutableArray();
+
+        _fields.Clear();
+        _componentAddedContexts.Clear();
+        _events.Clear();
+    }
+
     public override string ToString()
     {
-        var stringBuilder = new StringBuilder("ComponentData: ")
-            .AppendLine($"   {nameof(Namespace)}: {Namespace}")
-            .AppendLine($"   {nameof(FullName)}: {FullName}")
-            .AppendLine($"   {nameof(Name)}: {Name}")
-            .AppendLine($"   {nameof(FullPrefix)}: {FullPrefix}")
-            .AppendLine($"   {nameof(Prefix)}: {Prefix}")
-            .AppendLine($"   {nameof(IsUnique)}: {IsUnique}")
-            .AppendLine($"   {nameof(CleanupMode)}: {CleanupMode}");
-
-        if (Events.Count > 0)
+        var stringBuilder = new StringBuilder("ComponentData:\n");
+        try
         {
-            stringBuilder.AppendLine($"   {nameof(Events)}:");
-            foreach (var eventData in Events)
+            stringBuilder.AppendLine($"   {nameof(Namespace)}: {Namespace}")
+                .AppendLine($"   {nameof(FullName)}: {FullName}")
+                .AppendLine($"   {nameof(Name)}: {Name}")
+                .AppendLine($"   {nameof(FullPrefix)}: {FullPrefix}")
+                .AppendLine($"   {nameof(Prefix)}: {Prefix}")
+                .AppendLine($"   {nameof(IsUnique)}: {IsUnique}")
+                .AppendLine($"   {nameof(CleanupMode)}: {CleanupMode}");
+
+
+            stringBuilder.AppendLine($"   {nameof(Fields)}:");
+
+            if (Fields.Length > 0)
             {
-                stringBuilder.AppendLine($"      {eventData.ToString()}");
+                foreach (var fieldData in Fields)
+                {
+                    stringBuilder.AppendLine($"      {fieldData.ToString()}");
+                }
+            }
+            else
+            {
+                stringBuilder.AppendLine($"      This Component doesn't have any fields.");
+            }
+
+            if (Events.Length > 0)
+            {
+                stringBuilder.AppendLine($"   {nameof(Events)}:");
+                foreach (var eventData in Events)
+                {
+                    stringBuilder.AppendLine($"      {eventData.ToString()}");
+                }
+            }
+
+            if (ComponentAddedContexts.Length > 0)
+            {
+                stringBuilder.AppendLine($"   {nameof(ComponentAddedContexts)}:");
+                foreach (var contexts in ComponentAddedContexts)
+                {
+                    stringBuilder.AppendLine($"      {contexts}");
+                }
             }
         }
-
-        if (ComponentAddedContexts.Count > 0)
+        catch (Exception e)
         {
-            stringBuilder.AppendLine($"   {nameof(ComponentAddedContexts)}:");
-            foreach (var contexts in ComponentAddedContexts)
-            {
-                stringBuilder.AppendLine($"      {contexts}");
-            }
-        }
-
-        stringBuilder.AppendLine($"   {nameof(Fields)}:");
-
-        if (ComponentAddedContexts.Count > 0)
-        {
-            foreach (var fieldData in Fields)
-            {
-                stringBuilder.AppendLine($"      {fieldData.ToString()}");
-            }
-        }
-        else
-        {
-            stringBuilder.AppendLine($"      This Component doesn't have any fields.");
-
+            stringBuilder.AppendLine(e.ToString());
         }
 
         return stringBuilder.ToString();
+    }
+
+    public bool Equals(ComponentData other)
+    {
+        return Namespace == other.Namespace && FullName == other.FullName && Name == other.Name && FullPrefix == other.FullPrefix && Prefix == other.Prefix && Fields.Equals(other.Fields) && Events.Equals(other.Events) && ComponentAddedContexts.Equals(other.ComponentAddedContexts) && IsUnique == other.IsUnique && CleanupMode == other.CleanupMode;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is ComponentData other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = (Namespace != null ? Namespace.GetHashCode() : 0);
+            hashCode = (hashCode * 397) ^ FullName.GetHashCode();
+            hashCode = (hashCode * 397) ^ Name.GetHashCode();
+            hashCode = (hashCode * 397) ^ FullPrefix.GetHashCode();
+            hashCode = (hashCode * 397) ^ Prefix.GetHashCode();
+            hashCode = (hashCode * 397) ^ Fields.GetHashCode();
+            hashCode = (hashCode * 397) ^ Events.GetHashCode();
+            hashCode = (hashCode * 397) ^ ComponentAddedContexts.GetHashCode();
+            hashCode = (hashCode * 397) ^ IsUnique.GetHashCode();
+            hashCode = (hashCode * 397) ^ (int)CleanupMode;
+            return hashCode;
+        }
     }
 }
 
@@ -193,13 +242,6 @@ public enum CleanupMode
     RemoveComponent,
     DestroyEntity,
     None,
-}
-
-public struct ComponentEventData
-{
-    public EventTarget EventTarget;
-    public EventType EventType;
-    public int Order;
 }
 
 public enum EventTarget

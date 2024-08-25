@@ -34,12 +34,13 @@ public static class StringConstants
 
     // public const string EventName = "Event";
     public const string EventAttributeName = "EventAttribute";
-    public const string ConstructorNameEventTarget = "eventTarget";
-    public const string ConstructorNameEventType = "eventType";
-    public const string ConstructorNameOrder = "order";
 
     // public const string CleanupName = "Cleanup";
     public const string CleanupAttributeName = "CleanupAttribute";
 
     public const string AddToContextAttributeName = "AddToContextAttribute";
+
+    public const string WithComponentsAttributeName = "WithComponentsAttribute";
+    public const string WithSystemsAttributeName = "WithSystemsAttribute";
+
 }

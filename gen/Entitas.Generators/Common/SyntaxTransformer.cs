@@ -28,6 +28,9 @@ public static class SyntaxTransformer
             if (instance is IFieldResolver fieldResolver)
                 fieldResolver.ResolveFields(namedTypeSymbol, ct);
 
+            if (instance is IFinalizable finalizable)
+                finalizable.FinalizeStruct();
+
             return instance;
         }
         catch
@@ -35,4 +38,9 @@ public static class SyntaxTransformer
             return null;
         }
     }
+}
+
+public interface IFinalizable
+{
+    public void FinalizeStruct();
 }
