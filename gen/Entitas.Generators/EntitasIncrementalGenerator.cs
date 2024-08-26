@@ -48,7 +48,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
         initContext.RegisterSourceOutput(componentDatas, GenerateComponentOutput);
         initContext.RegisterSourceOutput(componentContextPair, GenerateEntityExtensionsOutput);
-        // initContext.RegisterSourceOutput(componentContextPair, GenerateContextExtensionsOutput);
+        initContext.RegisterSourceOutput(componentContextPair, GenerateContextExtensionsOutput);
         initContext.RegisterSourceOutput(systemsWithComponents, GenerateSystemOutput);
 
         initContext.RegisterSourceOutput(contextsWithComponents, GenerateContextOutput);
@@ -372,18 +372,17 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         var componentData = value.ComponentData;
         var contextData = value.ContextData;
 
-        var entityExtensions = new StringBuilder()
+        var contextExtensions = new StringBuilder()
             .AppendGenerationWarning(nameof(GenerateComponentOutput));
 
         try
         {
             var methodSignature = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
-            // var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
             var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
             var equalityComparer = componentData.Fields.Length == 0 ? string.Empty : string.Join("", componentData.Fields.Select(field => $" && this.{componentData.Name}.{field.Name} == {field.ValidLowerName}"));
 
 
-            var entityExtensionsContent =
+            var contextExtensionsContent =
                 $$"""
                   partial class {{contextData.Name}} : {{componentData.Namespace.NamespaceClassifier()}}I{{componentData.Prefix}}Context
                   {
@@ -393,7 +392,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
                       public {{componentData.FullName}} Get{{componentData.Prefix}}() => this.{{componentData.Name}};
 
-                      public {{contextData.Prefix}}Context Set{{componentData.Prefix}}({{methodSignature}})
+                      public {{contextData.Name}} Set{{componentData.Prefix}}({{methodSignature}})
                       {
                           if (!this.IsEnabled)
                           {
@@ -418,7 +417,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
                           return this;
                       }
 
-                      public {{contextData.Prefix}}Context Remove{{componentData.Prefix}}()
+                      public {{contextData.Name}} Remove{{componentData.Prefix}}()
                       {
                           if (!this.IsEnabled)
                           {
@@ -440,17 +439,17 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
                   }
                   """;
 
-            using (new NamespaceBuilder(entityExtensions, contextData.Namespace))
+            using (new NamespaceBuilder(contextExtensions, contextData.Namespace))
             {
-                entityExtensions.AppendLine(entityExtensionsContent);
+                contextExtensions.AppendLine(contextExtensionsContent);
             }
         }
         catch (Exception e)
         {
-            entityExtensions.AppendLine(e.ToString());
+            contextExtensions.AppendLine(e.ToString());
         }
 
-        context.AddSource(FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), entityExtensions.ToString());
+        context.AddSource(FileNameHint(contextData.Namespace, $"{contextData.Name}{componentData.Prefix}Extensions"), contextExtensions.ToString());
     }
 
     static void GenerateInterfaceExtensionsOutput(SourceProductionContext context, ComponentWithContexts componentWithContexts)
@@ -507,41 +506,41 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             interfaceExtensions.AppendLine($"public interface I{componentData.Prefix}Entity : Entitas.IEntity {{ }} \n");
             interfaceExtensions.AppendLine(entityExtensions);
 
-//             if (componentData.IsUnique)
-//             {
-//                 var contextHasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Has{componentData.Prefix}(),"));
-//                 var contextGetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Get{componentData.Prefix}(),"));
-//                 var contextSetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Set{componentData.Prefix}({methodArguments}),"));
-//                 var contextRemoveComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Remove{componentData.Prefix}(),"));
-//                 var contextExtensions =
-//                     $$"""
-//                             public static bool Has{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
-//                             => context switch
-//                             {
-//                                {{contextHasComponent}}
-//                                 _ => default
-//                             };
-//                             public static {{componentData.FullName}} Get{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
-//                             => context switch
-//                             {
-//                                {{contextGetComponent}}
-//                                 _ => default
-//                             };
-//                             public static I{{componentData.Prefix}}Context Set{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context{{methodSignatureWithLeadingComma}})
-//                             => context switch
-//                             {
-//                                {{contextSetComponent}}
-//                                 _ => default
-//                             };
-//                             public static I{{componentData.Prefix}}Context Remove{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
-//                             => context switch
-//                             {
-//                                {{contextRemoveComponent}}
-//                                 _ => default
-//                             };
-//                       """;
-//                 interfaceExtensions.AppendLine(contextExtensions);
-//             }
+             if (componentData.IsUnique)
+             {
+                 var contextHasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Has{componentData.Prefix}(),"));
+                 var contextGetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Get{componentData.Prefix}(),"));
+                 var contextSetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Set{componentData.Prefix}({methodArguments}),"));
+                 var contextRemoveComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Remove{componentData.Prefix}(),"));
+                 var contextExtensions =
+                     $$"""
+                             public static bool Has{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
+                             => context switch
+                             {
+                                {{contextHasComponent}}
+                                 _ => default
+                             };
+                             public static {{componentData.FullName}} Get{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
+                             => context switch
+                             {
+                                {{contextGetComponent}}
+                                 _ => default
+                             };
+                             public static I{{componentData.Prefix}}Context Set{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context{{methodSignatureWithLeadingComma}})
+                             => context switch
+                             {
+                                {{contextSetComponent}}
+                                 _ => default
+                             };
+                             public static I{{componentData.Prefix}}Context Remove{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
+                             => context switch
+                             {
+                                {{contextRemoveComponent}}
+                                 _ => default
+                             };
+                       """;
+                 interfaceExtensions.AppendLine(contextExtensions);
+             }
 
             interfaceExtensions.AppendLine("}");
         }
