@@ -61,7 +61,6 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
         FullPrefix = FullName.RemoveSuffix("Component");
         Prefix = Name.RemoveSuffix("Component");
-        ComponentAddedContexts = ComponentAddedContexts.Add("Hey There");
         return true;
     }
 
@@ -80,7 +79,6 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     bool TryResolveComponentAttribute(AttributeData attributeData)
     {
-        ComponentAddedContexts = ComponentAddedContexts.Add("Is Unique");
         IsUnique = (bool?)attributeData.ConstructorArguments[0].Value ?? false;
         return true;
     }
@@ -234,4 +232,5 @@ public enum EventType
 {
     Added = 0,
     Removed = 1,
+    AddedOrRemoved = 2,
 }

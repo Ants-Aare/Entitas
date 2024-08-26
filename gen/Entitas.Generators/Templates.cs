@@ -45,6 +45,12 @@ namespace Entitas.Generators
                 ? $"namespace {@namespace}\n{{\n{content}}}\n"
                 : content;
         }
+        public static string NamespaceClassifier(this string? @namespace)
+        {
+            return !string.IsNullOrEmpty(@namespace)
+                ? $"{@namespace}."
+                : string.Empty;
+        }
 
         public static string RemoveSuffix(this string str, string suffix)
         {

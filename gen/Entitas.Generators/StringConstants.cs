@@ -41,6 +41,13 @@ public static class StringConstants
     public const string AddToContextAttributeName = "AddToContextAttribute";
 
     public const string WithComponentsAttributeName = "WithComponentsAttribute";
+
     public const string WithSystemsAttributeName = "WithSystemsAttribute";
+
+    public const string EntityIsAttributeName = "EntityIsAttribute";
+
+    public const string TriggeredByAttributeName = "TriggeredByAttribute";
+
+
 
 }

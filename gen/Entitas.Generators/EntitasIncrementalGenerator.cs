@@ -17,14 +17,16 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext initContext)
     {
-        // var systemDatas = initContext.SyntaxProvider
-        //     .CreateSyntaxProvider(SystemData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<SystemData>)
-        //     .RemoveEmptyValues();
         //
         // var groupDatas = initContext.SyntaxProvider
         //     .CreateSyntaxProvider(GroupData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<GroupData>)
         //     .RemoveEmptyValues();
 
+        // initContext.RegisterSourceOutput(groupDatas, GenerateGroupOutput);
+
+        var systemDatas = initContext.SyntaxProvider
+            .CreateSyntaxProvider(SystemData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<SystemData>)
+            .RemoveEmptyValues();
         var componentDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(ComponentData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ComponentData>)
             .RemoveEmptyValues();
@@ -32,43 +34,29 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .CreateSyntaxProvider(ContextData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ContextData>)
             .RemoveEmptyValues();
 
-        // var allComponents = componentDatas
-        //     .Select((x, _) => x.Prefix)
-        //     .Collect()
-        //     .Sort();
-        //
-        // var allContexts = contextDatas
-        //     .Select((x, _) => x.Prefix)
-        //     .Collect()
-        //     .Sort();
-
-        // var allComponents = sortedComponents.Select((x, _) => x.Select(y => y.Prefix).ToImmutableArray());
-        // var allContexts = sortedContextDatas.Select((x, _) => x.Select(y => y.Prefix).ToImmutableArray());
-
-        var ComponentsWithContexts = componentDatas
+        var componentsWithContexts = componentDatas
             .Combine(contextDatas.Collect())
             .Select(CombineComponentsWithContexts);
+        var contextsWithComponents = contextDatas
+            .Combine(componentDatas.Collect())
+            .Select(CombineContextsWithComponents);
+        var systemsWithComponents = systemDatas
+            .Combine(componentDatas.Collect())
+            .Select(CombineSystemsWithComponents);
 
-        var ComponentContextPair = ComponentsWithContexts.SelectMany((x, _) => x.ContextDatas.Select(ContextData => (x.ComponentData, ContextData)));
-        //
-        // var ContextsWithComponents = contextDatas
-        //     .Combine(componentDatas.Collect())
-        //     .Select(CombineContextsWithComponents);
+        var componentContextPair = componentsWithContexts.SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData)));
 
         initContext.RegisterSourceOutput(componentDatas, GenerateComponentOutput);
-        initContext.RegisterSourceOutput(ComponentContextPair, GenerateEntityExtensionsOutput);
-        // initContext.RegisterSourceOutput(groupDatas, GenerateGroupOutput);
-        // initContext.RegisterSourceOutput(systemDatas, GenerateSystemOutput);
+        initContext.RegisterSourceOutput(componentContextPair, GenerateEntityExtensionsOutput);
+        // initContext.RegisterSourceOutput(componentContextPair, GenerateContextExtensionsOutput);
+        initContext.RegisterSourceOutput(systemsWithComponents, GenerateSystemOutput);
 
-        initContext.RegisterSourceOutput(contextDatas, GenerateContextOutput);
-        initContext.RegisterSourceOutput(contextDatas, GenerateEntityOutput);
-        initContext.RegisterSourceOutput(ComponentsWithContexts, GenerateInterfaceExtensionsOutput);
-
-        // initContext.RegisterSourceOutput(allComponents, GenerateComponentsEnumOutput);
-        // initContext.RegisterSourceOutput(allContexts, GenerateContextsEnumOutput);
+        initContext.RegisterSourceOutput(contextsWithComponents, GenerateContextOutput);
+        initContext.RegisterSourceOutput(contextsWithComponents, GenerateEntityOutput);
+        initContext.RegisterSourceOutput(componentsWithContexts, GenerateInterfaceExtensionsOutput);
     }
 
-    ComponentWithContexts CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
+    static ComponentWithContexts CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
     {
         var contexts = new List<ContextData>();
 
@@ -84,76 +72,151 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             if (contextData.Components.Contains(data.componentData.Name))
             {
                 contexts.Add(contextData);
-                continue;
             }
         }
 
         return new ComponentWithContexts(data.componentData, contexts.ToImmutableArray());
     }
 
-    ContextWithComponents CombineContextsWithComponents((ContextData contextData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
+    static SystemWithComponents CombineSystemsWithComponents((SystemData systemData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
     {
-        return default;
-    }
+        var componentDatas = new List<ComponentData>();
 
-    void GenerateContextsEnumOutput(SourceProductionContext context, ImmutableArray<string> contextNames)
-    {
-        var enumsStringBuilder = new StringBuilder()
-            .AppendGenerationWarning(nameof(GenerateComponentsEnumOutput));
-
-        using (new NamespaceBuilder(enumsStringBuilder, "Entitas.Generated"))
+        foreach (var componentData in data.componentDatas)
         {
-            enumsStringBuilder.AppendLine("    public enum Contexts\n    {");
-            foreach (var contextName in contextNames)
+            if (data.systemData.TriggeredBy.Select(x => x.component).Contains(componentData.Name))
             {
-                enumsStringBuilder.AppendLine($"        {contextName},");
+                componentDatas.Add(componentData);
             }
 
-            enumsStringBuilder.AppendLine("    }");
+            if (data.systemData.EntityIs.Contains(componentData.Name))
+            {
+                componentDatas.Add(componentData);
+            }
         }
 
-        context.AddSource(FileNameHint("Entitas.Generated", "ComponentEnums"), enumsStringBuilder.ToString());
+        return new SystemWithComponents(data.systemData, componentDatas.ToImmutableArray());
     }
 
-    void GenerateComponentsEnumOutput(SourceProductionContext context, ImmutableArray<string> componentNames)
+    static ContextWithComponents CombineContextsWithComponents((ContextData contextData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
     {
-        var enumsStringBuilder = new StringBuilder()
-            .AppendGenerationWarning(nameof(GenerateComponentsEnumOutput));
+        var contexts = new List<ComponentData>();
+
+
+        foreach (var componentData in data.componentDatas)
+        {
+            if (data.contextData.Components.Contains(componentData.Name))
+            {
+                contexts.Add(componentData);
+            }
+
+            if (componentData.ComponentAddedContexts.Contains(data.contextData.Name))
+            {
+                contexts.Add(componentData);
+            }
+        }
+
+        return new ContextWithComponents(data.contextData, contexts.ToImmutableArray());
+    }
+
+    // static void GenerateGroupOutput(SourceProductionContext context, GroupData data) { }
+    //
+    static void GenerateSystemOutput(SourceProductionContext context, SystemWithComponents data)
+    {
+        var systemData = data.SystemData;
+        var componentDatas = data.ComponentDatas;
+        var stringBuilder = new StringBuilder();
         try
         {
-            using (new NamespaceBuilder(enumsStringBuilder, "Entitas.Generated"))
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            var hasMultipleConstraints = systemData.TriggeredBy.Length + systemData.EntityIs.Length > 1;
+
+            string entityType;
+            if (hasMultipleConstraints)
             {
-                enumsStringBuilder.AppendLine("    public enum Components\n    {");
-                foreach (var componentData in componentNames)
+                entityType = $"I{systemData.Name}Entity";
+            }
+            else
+            {
+                var componentData = componentDatas.First(x => x.Name == systemData.TriggeredBy[0].component);
+                entityType = $"{componentData.Namespace.NamespaceClassifier()}I{componentData.Prefix}Entity";
+            }
+
+            var content = $$"""
+                            public sealed partial class {{systemData.Name}} : Entitas.IReactiveSystem<{{entityType}}>
+                            {
+                                static readonly System.Collections.Generic.HashSet<{{systemData.Name}}> Instances = new();
+                                readonly System.Collections.Generic.List<{{entityType}}> _collector = new ();
+                                readonly System.Collections.Generic.List<{{entityType}}> _buffer = new ();
+                                public static void UpdateSystems()
+                                {
+                                    foreach (var systemInstance in Instances)
+                                        systemInstance.UpdateSystem();
+                                }
+                                public void UpdateSystem()
+                                {
+                                    if (_collector.Count == 0)
+                                        return;
+
+                                    foreach (var entity in _collector)
+                                        if (Filter(entity))
+                                            _buffer.Add(entity);
+
+                                    _collector.Clear();
+
+                                    if (_buffer.Count == 0)
+                                        return;
+
+                                    try
+                                    {
+                                        Execute(_buffer);
+                                    }
+                                    finally
+                                    {
+                                        _buffer.Clear();
+                                    }
+                                }
+
+                                public void Enable() =>Instances.Add(this);
+
+                                public void Disable() =>Instances.Remove(this);
+
+                                ~{{systemData.Name}}()=>Instances.Remove(this);
+                            }
+                            """;
+
+
+            stringBuilder.AppendGenerationWarning(nameof(GenerateComponentOutput));
+            using (new NamespaceBuilder(stringBuilder, systemData.Namespace))
+            {
+                stringBuilder.AppendLine(content);
+
+                if (hasMultipleConstraints)
                 {
-                    enumsStringBuilder.AppendLine($"        {componentData},");
+                    var enumerable = componentDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Prefix}Entity");
+                    // var enumerable = systemData.TriggeredBy.Select(x => x.component)
+                    //     .Concat(systemData.EntityIs)
+                    //     .Select(x=> $"I{x}Entity");
+                    var interfaceDefinition = $"public interface I{systemData.Name}Entity : {string.Join(", ", enumerable)}{{ }}";
+                    stringBuilder.AppendLine(interfaceDefinition);
                 }
+            }
 
-                enumsStringBuilder.AppendLine("    }\n \n");
-
-
-                enumsStringBuilder.AppendLine("    public enum ComponentEvents\n{");
-                foreach (var componentData in componentNames)
-                {
-                    enumsStringBuilder.AppendLine($"        {componentData}Added,\n        {componentData}Removed,\n        {componentData}AddedOrRemoved,\n");
-                }
-
-                enumsStringBuilder.AppendLine("    }");
+            using (new CommentBuilder(stringBuilder))
+            {
+                stringBuilder.AppendLine(systemData.ToString());
             }
         }
         catch (Exception e)
         {
-            enumsStringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine(e.ToString());
         }
 
-        context.AddSource(FileNameHint("Entitas.Generated", "ComponentEnums"), enumsStringBuilder.ToString());
+        context.AddSource(FileNameHint(systemData.Namespace, systemData.Name), stringBuilder.ToString());
     }
 
-    void GenerateGroupOutput(SourceProductionContext context, GroupData data) { }
-
-    void GenerateSystemOutput(SourceProductionContext context, SystemData data) { }
-
-    void GenerateComponentOutput(SourceProductionContext context, ComponentData data)
+    static void GenerateComponentOutput(SourceProductionContext context, ComponentData data)
     {
         var stringBuilder = new StringBuilder();
         try
@@ -169,11 +232,6 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             var content = $$"""
                             public sealed partial class {{data.Name}}
                             {
-                                public const string Name = "{{data.Name}}";
-                                public const string Added = "{{data.Prefix}}Added";
-                                public const string Removed = "{{data.Prefix}}Removed";
-                                public const string AddedOrRemoved = "{{data.Prefix}}AddedOrRemoved";
-
                                 static readonly System.Collections.Generic.Stack<{{data.Name}}> ComponentPool = new ();
 
                                 {{data.Name}}({{methodSignature}})
@@ -219,7 +277,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         context.AddSource(FileNameHint(data.Namespace, data.Name), stringBuilder.ToString());
     }
 
-    void GenerateEntityExtensionsOutput(SourceProductionContext context, (ComponentData ComponentData, ContextData ContextData) value)
+    static void GenerateEntityExtensionsOutput(SourceProductionContext context, (ComponentData ComponentData, ContextData ContextData) value)
     {
         var componentData = value.ComponentData;
         var contextData = value.ContextData;
@@ -229,68 +287,71 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
         try
         {
+            // entityExtensions.AppendLine("public partial class GuguGaga{}");
             var methodSignature = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
-            var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
+            // var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
             var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
-            var equalityComparer = componentData.Fields.Length == 0 ? string.Empty : string.Join(" && ", componentData.Fields.Select(field => $"entity.{componentData.Name}.{field.Name} == {field.ValidLowerName}"));
+            var equalityComparer = componentData.Fields.Length == 0 ? string.Empty : string.Join("", componentData.Fields.Select(field => $" && this.{componentData.Name}.{field.Name} == {field.ValidLowerName}"));
 
 
             var entityExtensionsContent =
                 $$"""
-                  public static class {{contextData.Prefix}}Entity{{componentData.Prefix}}Extensions
+                  partial class {{contextData.Prefix}}Entity : {{componentData.Namespace.NamespaceClassifier()}}I{{componentData.Prefix}}Entity
                   {
-                      public static bool Has{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity) => entity.{{componentData.Name}} != null;
+                      {{componentData.FullName}} {{componentData.Name}};
 
-                      public static {{componentData.Name}} Get{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity) => entity.{{componentData.Name}};
+                      public bool Has{{componentData.Prefix}}() => this.{{componentData.Name}} != null;
 
-                      public static {{contextData.Prefix}}Entity Set{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
+                      public {{componentData.FullName}} Get{{componentData.Prefix}}() => this.{{componentData.Name}};
+
+                      public {{contextData.Prefix}}Entity Set{{componentData.Prefix}}({{methodSignature}})
                       {
-                          if (!entity.IsEnabled)
+                          if (!this.IsEnabled)
                           {
-                              return entity;
+                              return this;
                           }
 
-                          if (entity.{{componentData.Name}} == null)
+                          if (this.{{componentData.Name}} == null)
                           {
-                              entity.{{componentData.Name}} = {{componentData.Name}}.CreateComponent(value);
-                              return entity;
+                              this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+                              return this;
                           }
 
-                          if ({{equalityComparer}})
+                          if (Has{{componentData.Prefix}}(){{equalityComparer}})
                           {
-                              return entity;
+                              return this;
                           }
 
-                          var previousComponent = entity.{{componentData.Name}};
-                          entity.{{componentData.Name}} = {{componentData.Name}}.CreateComponent({{methodArguments}});
+                          var previousComponent = this.{{componentData.Name}};
+                          this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
 
-                          {{componentData.Name}}.DestroyComponent(previousComponent);
-                          return entity;
+                          {{componentData.FullName}}.DestroyComponent(previousComponent);
+                          return this;
                       }
 
-                      public static {{contextData.Prefix}}Entity Remove{{componentData.Prefix}}(this {{contextData.Prefix}}Entity entity)
+                      public {{contextData.Prefix}}Entity Remove{{componentData.Prefix}}()
                       {
-                          if (!entity.IsEnabled)
+                          if (!this.IsEnabled)
                           {
-                              return entity;
+                              return this;
                           }
 
-                          if (entity.{{componentData.Name}} == null)
+                          if (this.{{componentData.Name}} == null)
                           {
-                              return entity;
+                              return this;
                           }
 
-                          var previousComponent = entity.{{componentData.Name}};
-                          entity.{{componentData.Name}} = null;
+                          var previousComponent = this.{{componentData.Name}};
+                          this.{{componentData.Name}} = null;
 
-                          {{componentData.Name}}.DestroyComponent(previousComponent);
+                          {{componentData.FullName}}.DestroyComponent(previousComponent);
 
-                          return entity;
+                          return this;
                       }
                   }
                   """;
 
-            using (new NamespaceBuilder(entityExtensions, componentData.Namespace))
+            using (new NamespaceBuilder(entityExtensions, contextData.Namespace))
             {
                 entityExtensions.AppendLine(entityExtensionsContent);
             }
@@ -300,81 +361,215 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             entityExtensions.AppendLine(e.ToString());
         }
 
-        context.AddSource(FileNameHint(componentData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), entityExtensions.ToString());
+        context.AddSource(FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), entityExtensions.ToString());
     }
 
-    void GenerateInterfaceExtensionsOutput(SourceProductionContext context, ComponentWithContexts componentWithContexts)
+    static void GenerateContextExtensionsOutput(SourceProductionContext context, (ComponentData ComponentData, ContextData ContextData) value)
     {
-        var data = componentWithContexts.ComponentData;
+        if (!value.ComponentData.IsUnique)
+            return;
+
+        var componentData = value.ComponentData;
+        var contextData = value.ContextData;
+
+        var entityExtensions = new StringBuilder()
+            .AppendGenerationWarning(nameof(GenerateComponentOutput));
+
+        try
+        {
+            var methodSignature = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
+            // var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
+            var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
+            var equalityComparer = componentData.Fields.Length == 0 ? string.Empty : string.Join("", componentData.Fields.Select(field => $" && this.{componentData.Name}.{field.Name} == {field.ValidLowerName}"));
+
+
+            var entityExtensionsContent =
+                $$"""
+                  partial class {{contextData.Name}} : {{componentData.Namespace.NamespaceClassifier()}}I{{componentData.Prefix}}Context
+                  {
+                      {{componentData.FullName}} {{componentData.Name}};
+
+                      public bool Has{{componentData.Prefix}}() => this.{{componentData.Name}} != null;
+
+                      public {{componentData.FullName}} Get{{componentData.Prefix}}() => this.{{componentData.Name}};
+
+                      public {{contextData.Prefix}}Context Set{{componentData.Prefix}}({{methodSignature}})
+                      {
+                          if (!this.IsEnabled)
+                          {
+                              return this;
+                          }
+
+                          if (this.{{componentData.Name}} == null)
+                          {
+                              this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+                              return this;
+                          }
+
+                          if (Has{{componentData.Prefix}}(){{equalityComparer}})
+                          {
+                              return this;
+                          }
+
+                          var previousComponent = this.{{componentData.Name}};
+                          this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+
+                          {{componentData.FullName}}.DestroyComponent(previousComponent);
+                          return this;
+                      }
+
+                      public {{contextData.Prefix}}Context Remove{{componentData.Prefix}}()
+                      {
+                          if (!this.IsEnabled)
+                          {
+                              return this;
+                          }
+
+                          if (this.{{componentData.Name}} == null)
+                          {
+                              return this;
+                          }
+
+                          var previousComponent = this.{{componentData.Name}};
+                          this.{{componentData.Name}} = null;
+
+                          {{componentData.FullName}}.DestroyComponent(previousComponent);
+
+                          return this;
+                      }
+                  }
+                  """;
+
+            using (new NamespaceBuilder(entityExtensions, contextData.Namespace))
+            {
+                entityExtensions.AppendLine(entityExtensionsContent);
+            }
+        }
+        catch (Exception e)
+        {
+            entityExtensions.AppendLine(e.ToString());
+        }
+
+        context.AddSource(FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), entityExtensions.ToString());
+    }
+
+    static void GenerateInterfaceExtensionsOutput(SourceProductionContext context, ComponentWithContexts componentWithContexts)
+    {
+        var componentData = componentWithContexts.ComponentData;
         var contextDatas = componentWithContexts.ContextDatas;
 
-        var methodSignature = string.Join(", ", data.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
+        var methodSignature = string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
         var methodSignatureWithLeadingComma = methodSignature == string.Empty ? string.Empty : $", {methodSignature}";
-        var methodArguments = data.Fields.Length == 0 ? string.Empty : string.Join(", ", data.Fields.Select(static field => $"{field.ValidLowerName}"));
-        var methodArgumentsWithLeadingComma = methodArguments == string.Empty ? string.Empty : $", {methodArguments}";
+        var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
 
         var interfaceExtensions = new StringBuilder()
             .AppendGenerationWarning(nameof(GenerateComponentOutput));
 
-        string hasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Has{data.Prefix}({x.Prefix}Entity),"));
-        string getComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Get{data.Prefix}({x.Prefix}Entity),"));
-        string setComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Set{data.Prefix}({x.Prefix}Entity{methodArgumentsWithLeadingComma}),"));
-        string removeComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.FullPrefix}Entity{data.Prefix}Extensions.Remove{data.Prefix}({x.Prefix}Entity),"));
-        var interfaceExtensionsContent =
+        var hasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Has{componentData.Prefix}(),"));
+        var getComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Get{componentData.Prefix}(),"));
+        var setComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Set{componentData.Prefix}({methodArguments}),"));
+        var removeComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Remove{componentData.Prefix}(),"));
+        var entityExtensions =
             $$"""
-                public static class I{{data.Prefix}}Extensions
+                public static class I{{componentData.Prefix}}Extensions
                 {
-                    public static bool HasAsset(this I{{data.Prefix}}Entity entity)
+                    public static bool Has{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity)
                     => entity switch
                     {
-                {{hasComponent}}
+                    {{hasComponent}}
                         _ => default
                     };
-                    public static {{data.Name}} Get{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
+                    public static {{componentData.FullName}} Get{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity)
                     => entity switch
                     {
-                {{getComponent}}
+                    {{getComponent}}
                         _ => default
                     };
-                    public static I{{data.Prefix}}Entity Set{{data.Prefix}}(this I{{data.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
+                    public static I{{componentData.Prefix}}Entity Set{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
                     => entity switch
                     {
-                {{setComponent}}
+                    {{setComponent}}
                         _ => default
                     };
-                    public static I{{data.Prefix}}Entity Remove{{data.Prefix}}(this I{{data.Prefix}}Entity entity)
+                    public static I{{componentData.Prefix}}Entity Remove{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity)
                     => entity switch
                     {
-                {{removeComponent}}
+                    {{removeComponent}}
                         _ => default
                     };
-                }
               """;
 
-        using (new NamespaceBuilder(interfaceExtensions, data.Namespace))
+        using (new NamespaceBuilder(interfaceExtensions, componentData.Namespace))
         {
-            interfaceExtensions.AppendLine($"public interface I{data.Prefix}Entity : Entitas.IEntity {{ }} \n");
-            interfaceExtensions.AppendLine(interfaceExtensionsContent);
+            if (componentData.IsUnique)
+                interfaceExtensions.AppendLine($"public interface I{componentData.Prefix}Context : Entitas.IContext {{ }} \n");
+
+            interfaceExtensions.AppendLine($"public interface I{componentData.Prefix}Entity : Entitas.IEntity {{ }} \n");
+            interfaceExtensions.AppendLine(entityExtensions);
+
+//             if (componentData.IsUnique)
+//             {
+//                 var contextHasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Has{componentData.Prefix}(),"));
+//                 var contextGetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Get{componentData.Prefix}(),"));
+//                 var contextSetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Set{componentData.Prefix}({methodArguments}),"));
+//                 var contextRemoveComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Remove{componentData.Prefix}(),"));
+//                 var contextExtensions =
+//                     $$"""
+//                             public static bool Has{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
+//                             => context switch
+//                             {
+//                                {{contextHasComponent}}
+//                                 _ => default
+//                             };
+//                             public static {{componentData.FullName}} Get{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
+//                             => context switch
+//                             {
+//                                {{contextGetComponent}}
+//                                 _ => default
+//                             };
+//                             public static I{{componentData.Prefix}}Context Set{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context{{methodSignatureWithLeadingComma}})
+//                             => context switch
+//                             {
+//                                {{contextSetComponent}}
+//                                 _ => default
+//                             };
+//                             public static I{{componentData.Prefix}}Context Remove{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
+//                             => context switch
+//                             {
+//                                {{contextRemoveComponent}}
+//                                 _ => default
+//                             };
+//                       """;
+//                 interfaceExtensions.AppendLine(contextExtensions);
+//             }
+
+            interfaceExtensions.AppendLine("}");
         }
 
-        context.AddSource(FileNameHint(data.Namespace, $"I{data.Prefix}EntityExtensions"), interfaceExtensions.ToString());
+        context.AddSource(FileNameHint(componentData.Namespace, $"I{componentData.Prefix}EntityExtensions"), interfaceExtensions.ToString());
     }
 
-    void GenerateEntityOutput(SourceProductionContext context, ContextWithComponents value)
+    static void GenerateEntityOutput(SourceProductionContext context, ContextWithComponents value)
     {
         var contextData = value.ContextData;
         var componentDatas = value.ComponentDatas;
+
+        var entityComponents = componentDatas.Where(x => !x.IsUnique).ToArray();
+        // var interfaceImplementations = componentDatas.Length == 0 ? string.Empty : string.Join("", componentDatas.Select(static component => $", {component.Namespace.NamespaceClassifier()}I{component.Prefix}Entity"));
+        // var fieldDeclarations = componentDatas.Length == 0 ? string.Empty : string.Join("\n", componentDatas.Select(static component => $"{component.FullName} {component.Name};"));
+        var destroyCalls = entityComponents.Length == 0 ? string.Empty : string.Join("\n", entityComponents.Select(static component => $"{component.FullName}.DestroyComponent(this.{component.Name}); \n this.{component.Name} = null;"));
 
         var stringBuilder = new StringBuilder();
         try
         {
             var content = $$"""
-                            public class {{contextData.Prefix}}Entity : Entitas.EntityBase
+                            public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase
                             {
                                 public {{contextData.Name}} Context { get; private set; }
+                                internal {{contextData.Prefix}}Entity(){}
 
-                                private {{contextData.Prefix}}Entity(){}
-                                public void OnCreated(int id, {{contextData.Name}} context)
+
+                                public void InitializeEntity(int id, {{contextData.Name}} context)
                                 {
                                     Id = id;
                                     Context = context;
@@ -382,8 +577,8 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
                                 }
                                 public void DestroyImmediate()
                                 {
+                            {{destroyCalls}}
                                     Context.ReturnEntity(this);
-
                                     Context = null;
                                     IsEnabled = false;
                                     Id = -1;
@@ -406,36 +601,44 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         context.AddSource(FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
     }
 
-    void GenerateContextOutput(SourceProductionContext context, ContextData data)
+    static void GenerateContextOutput(SourceProductionContext context, ContextWithComponents value)
     {
+        var contextData = value.ContextData;
+        var componentDatas = value.ComponentDatas;
+        var strings = componentDatas.Length == 0 ? string.Empty : string.Join(", ", componentDatas.Select(static component => $"\"{component.Name}\""));
+        var types = componentDatas.Length == 0 ? string.Empty : string.Join(", ", componentDatas.Select(static component => $"typeof({component.FullName})"));
+
+        // var uniqueComponents = componentDatas.Where(x => x.IsUnique).ToArray();
+        // var fieldDeclarations = uniqueComponents.Length == 0 ? string.Empty : string.Join("\n", uniqueComponents.Select(static component => $"{component.FullName} {component.Name};"));
+
         var stringBuilder = new StringBuilder();
         try
         {
             var content = $$"""
-                            public sealed partial class {{data.Name}} : Entitas.ContextBase
+                            public sealed partial class {{contextData.Name}} : Entitas.ContextBase
                             {
-                                public const string Name = "{{data.Name}}";
-                                public static readonly Entitas.ContextInfo ContextInfo = new Entitas.ContextInfo("{{data.Name}}",
-                                    null,
-                                    null);
+                                public const string Name = "{{contextData.Name}}";
+                                public static readonly Entitas.ContextInfo ContextInfo = new Entitas.ContextInfo("{{contextData.Name}}",
+                                    new[]{{{strings}}},
+                                    new[]{{{types}}});
 
                                 static int _creationIndex;
-                                static readonly System.Collections.Generic.Stack<{{data.Prefix}}Entity> EntityPool;
-                                static readonly System.Collections.Generic.Stack<{{data.Name}}> ContextPool;
+                                static readonly System.Collections.Generic.Stack<{{contextData.Prefix}}Entity> EntityPool;
+                                static readonly System.Collections.Generic.Stack<{{contextData.Name}}> ContextPool;
 
-                                System.Collections.Generic.Dictionary<int, {{data.Prefix}}Entity> _enabledEntities = new();
-                                internal {{data.Prefix}}Entity contextEntity;
+                                System.Collections.Generic.Dictionary<int, {{contextData.Prefix}}Entity> _enabledEntities = new();
+                                {{contextData.Prefix}}Entity contextEntity;
 
-                                private {{data.Name}}()
+                                private {{contextData.Name}}()
                                 {
                                     Id = _creationIndex++;
                                     IsEnabled = true;
                                     contextEntity = CreateEntity();
                                 }
 
-                                public static {{data.Name}} CreateContext()
+                                public static {{contextData.Name}} CreateContext()
                                 {
-                                    var context = new {{data.Name}}()
+                                    var context = new {{contextData.Name}}()
                                     {
                                     };
 
@@ -446,18 +649,18 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
                                 {
                                 }
 
-                                public {{data.Prefix}}Entity CreateEntity()
+                                public {{contextData.Prefix}}Entity CreateEntity()
                                 {
                                     var entity = EntityPool.Count <= 0
-                                        ? new {{data.Prefix}}Entity()
+                                        ? new {{contextData.Prefix}}Entity()
                                         : EntityPool.Pop();
 
-                                    entity.OnCreated(_creationIndex++, this);
+                                    entity.InitializeEntity(_creationIndex++, this);
                                     _enabledEntities.Add(_creationIndex, entity);
                                     return entity;
                                 }
 
-                                internal void ReturnEntity({{data.Prefix}}Entity entity)
+                                internal void ReturnEntity({{contextData.Prefix}}Entity entity)
                                 {
                                     _enabledEntities.Remove(entity.Id);
                                     EntityPool.Push(entity);
@@ -467,14 +670,14 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
             stringBuilder.AppendGenerationWarning(nameof(GenerateContextOutput));
 
-            using (new NamespaceBuilder(stringBuilder, data.Namespace))
+            using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
                 stringBuilder.AppendLine(content);
             }
 
             using (new CommentBuilder(stringBuilder))
             {
-                stringBuilder.AppendLine(data.ToString());
+                stringBuilder.AppendLine(contextData.ToString());
             }
         }
         catch (Exception e)
@@ -482,6 +685,6 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             stringBuilder.AppendLine(e.ToString());
         }
 
-        context.AddSource(FileNameHint(data.Namespace, data.Name), stringBuilder.ToString());
+        context.AddSource(FileNameHint(contextData.Namespace, contextData.Name), stringBuilder.ToString());
     }
 }
