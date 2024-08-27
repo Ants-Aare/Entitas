@@ -1,18 +1,16 @@
 using System;
-using System.Linq;
 using Entitas.Generators.Common;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct FieldData : IAttributeResolver, IFieldResolver, IEquatable<FieldData>
+public struct FieldData : /*IAttributeResolver,*/ IFieldResolver, IEquatable<FieldData>
 {
     public string TypeName { get; private set; }
     public string Name { get; private set; }
     public string ValidLowerName { get; private set; }
-    public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
+    // public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
 
     public FieldData()
     {
@@ -40,27 +38,26 @@ public struct FieldData : IAttributeResolver, IFieldResolver, IEquatable<FieldDa
             : $"@{lowerFirst}";
     }
 
-    public bool TryResolveAttribute(AttributeData attributeData)
-    {
-        if (attributeData is { AttributeClass.Name: IndexedAttributeName })
-        {
-            var typedConstant = attributeData.ConstructorArguments.FirstOrDefault().Value;
-            if (typedConstant == null)
-                return true;
-            IndexType = (EntityIndexType)typedConstant;
-        }
-
-        return true;
-    }
+    // public bool TryResolveAttribute(AttributeData attributeData)
+    // {
+    //     if (attributeData is { AttributeClass.Name: IndexedAttributeName })
+    //     {
+    //         var typedConstant = attributeData.ConstructorArguments.FirstOrDefault().Value;
+    //         if (typedConstant == null)
+    //             return true;
+    //         IndexType = (EntityIndexType)typedConstant;
+    //     }
+    //
+    //     return true;
+    // }
 
     public override string ToString()
     {
-        return $"FieldData: {TypeName} {Name} {ValidLowerName} {IndexType}";
+        return $"FieldData: {TypeName} {Name} {ValidLowerName}";
     }
-
     public bool Equals(FieldData other)
     {
-        return TypeName == other.TypeName && Name == other.Name && IndexType == other.IndexType;
+        return TypeName == other.TypeName && Name == other.Name;
     }
 
     public override bool Equals(object? obj)
@@ -72,17 +69,7 @@ public struct FieldData : IAttributeResolver, IFieldResolver, IEquatable<FieldDa
     {
         unchecked
         {
-            var hashCode = TypeName.GetHashCode();
-            hashCode = (hashCode * 397) ^ Name.GetHashCode();
-            hashCode = (hashCode * 397) ^ (int)IndexType;
-            return hashCode;
+            return (TypeName.GetHashCode() * 397) ^ Name.GetHashCode();
         }
     }
-}
-
-public enum EntityIndexType
-{
-    Array,
-    Dictionary,
-    None,
 }

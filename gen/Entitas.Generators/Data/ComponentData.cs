@@ -10,7 +10,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IFinalisable<ComponentData>, IEquatable<ComponentData>
+public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>, IEquatable<ComponentData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -23,6 +23,9 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     public ImmutableArray<string> ComponentAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
 
     public bool IsUnique { get; private set; }
+    public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
+    public int IndexMaxSize { get; private set; } = 1000;
+    public string? GetIndexMethod { get; private set; }
     public CleanupMode? CleanupMode { get; private set; }
 
     public ComponentData()
@@ -73,8 +76,16 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
             { AttributeClass.Name: EventAttributeName } => TryResolveEventAttribute(attributeData),
             { AttributeClass.Name: CleanupAttributeName } => TryResolveCleanupAttribute(attributeData),
             { AttributeClass.Name: AddToContextAttributeName } => TryResolveAddToContextAttribute(attributeData),
+            { AttributeClass.Name: IndexedAttributeName } => TryResolveIndexedAttribute(attributeData),
             _ => true
         };
+    }
+
+    bool TryResolveIndexedAttribute(AttributeData attributeData)
+    {
+        IndexType = (EntityIndexType)(attributeData.ConstructorArguments[0].Value ?? EntityIndexType.Dictionary);
+        IndexMaxSize = (int)(attributeData.ConstructorArguments[1].Value ?? 1000);
+        return true;
     }
 
     bool TryResolveComponentAttribute(AttributeData attributeData)
@@ -124,11 +135,21 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
         var fieldData = new FieldData();
 
         fieldData.TryResolveField(fieldSymbol);
-        fieldData.ResolveAttributes(fieldSymbol);
+        // fieldData.ResolveAttributes(fieldSymbol);
 
         if (!Fields.Contains(fieldData))
             Fields = Fields.Add(fieldData);
 
+        return true;
+    }
+
+    public bool TryResolveMethod(IMethodSymbol methodSymbol)
+    {
+        if (methodSymbol.Name != "GetIndex")
+            return true;
+
+        var syntaxReferences = methodSymbol.DeclaringSyntaxReferences;
+        GetIndexMethod = syntaxReferences.First().GetSyntax().NormalizeWhitespace(string.Empty).GetText().ToString();
         return true;
     }
 
@@ -182,6 +203,9 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
                     stringBuilder.AppendLine($"      {contexts}");
                 }
             }
+
+            if (GetIndexMethod != null)
+                stringBuilder.AppendLine(GetIndexMethod);
         }
         catch (Exception e)
         {
@@ -216,6 +240,11 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     }
 }
 
+// public readonly struct MethodData
+// {
+//     public readonly string Me
+// }
+
 public enum CleanupMode
 {
     RemoveComponent = 0,
@@ -233,4 +262,11 @@ public enum EventType
     Added = 0,
     Removed = 1,
     AddedOrRemoved = 2,
+}
+
+public enum EntityIndexType
+{
+    Array = 0,
+    Dictionary = 1,
+    None = -1000,
 }
