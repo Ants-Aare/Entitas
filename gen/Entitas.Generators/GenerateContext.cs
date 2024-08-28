@@ -70,6 +70,8 @@ public sealed class GenerateContext
 
                                 internal void ReturnEntity({{contextData.Prefix}}Entity entity)
                                 {
+                                    if (contextEntity == entity)
+                                        contextEntity = CreateEntity();
                                     _enabledEntities.Remove(entity.Id);
                                     EntityPool.Push(entity);
                                 }

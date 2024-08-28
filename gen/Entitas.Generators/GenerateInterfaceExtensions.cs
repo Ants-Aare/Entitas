@@ -47,8 +47,8 @@ public sealed class GenerateInterfaceExtensions
 
     static string GetIndexContent(ComponentData componentData, ImmutableArray<ContextData> contextDatas)
     {
-        var methodSignature = componentData.GetComponentValuesMethodSignature();
-        var methodArguments = componentData.GetComponentValuesMethodArguments();
+        var methodSignature = componentData.GetMethodSignature();
+        var methodArguments = componentData.GetMethodArguments();
         var getIndexedEntity = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"        {x.FullName} {x.Name} => {x.Name}.GetEntityWith{componentData.Prefix}({methodArguments}),"));
 
         return $$"""
@@ -63,14 +63,19 @@ public sealed class GenerateInterfaceExtensions
 
     static string GetUniqueContent(ComponentData componentData, ImmutableArray<ContextData> contextDatas)
     {
-        var methodArguments = componentData.GetComponentValuesMethodArguments();
-        var methodSignatureWithLeadingComma = componentData.GetComponentValuesMethodSignatureLeadingComma();
+        var methodArguments = componentData.GetMethodArguments();
+        var methodSignatureWithLeadingComma = componentData.GetMethodSignatureLeadingComma();
         var contextHasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Has{componentData.Prefix}(),"));
         var contextGetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Get{componentData.Prefix}(),"));
         var contextSetComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Set{componentData.Prefix}({methodArguments}),"));
         var contextRemoveComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"{x.FullName} {x.Name} => {x.Name}.Remove{componentData.Prefix}(),"));
 
         return $$"""
+                       public static bool Has{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities) => System.Linq.Enumerable.FirstOrDefault(entities)?.Has{{componentData.Prefix}}() ?? false;
+                       public static {{componentData.FullName}} Get{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities) => System.Linq.Enumerable.FirstOrDefault(entities)?.Get{{componentData.Prefix}}() ?? null;
+                       public static System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> Set{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities{{methodSignatureWithLeadingComma}}) { System.Linq.Enumerable.FirstOrDefault(entities)?.Set{{componentData.Prefix}}({{methodArguments}});return entities;}
+                       public static System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> Remove{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities) { System.Linq.Enumerable.FirstOrDefault(entities)?.Remove{{componentData.Prefix}}();return entities;}
+
                        public static bool Has{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context)
                        => context switch
                        {
@@ -100,10 +105,9 @@ public sealed class GenerateInterfaceExtensions
 
     static string GetDefaultContent(ComponentData componentData, ImmutableArray<ContextData> contextDatas)
     {
-        var methodArguments = componentData.GetComponentValuesMethodArguments();
-        var methodSignatureWithLeadingComma = componentData.GetComponentValuesMethodSignatureLeadingComma();
+        var methodArguments = componentData.GetMethodArguments();
+        var methodSignatureWithLeadingComma = componentData.GetMethodSignatureLeadingComma();
         //public static E2GameEntity AsE2GameEntity(this IBoardEntity e) => (E2GameEntity)e;
-        var asEntity = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"\tpublic static {x.FullPrefix}Entity As{x.Prefix}Entity(this I{componentData.Prefix}Entity e) => ({x.FullPrefix}Entity)e;"));
         var getContext = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"\t\t\t{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Context,"));
         var hasComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"\t\t\t{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Has{componentData.Prefix}(),"));
         var getComponent = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"\t\t\t{x.FullPrefix}Entity {x.Prefix}Entity => {x.Prefix}Entity.Get{componentData.Prefix}(),"));
@@ -114,7 +118,6 @@ public sealed class GenerateInterfaceExtensions
         return $$"""
                  public static class I{{componentData.Prefix}}Extensions
                  {
-                 {{asEntity}}
                      public static I{{componentData.Prefix}}Context GetContext(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities) => System.Linq.Enumerable.FirstOrDefault(entities)?.GetContext();
                      public static I{{componentData.Prefix}}Context GetContext(this I{{componentData.Prefix}}Entity entity)
                         => entity switch

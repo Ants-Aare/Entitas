@@ -155,6 +155,10 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public ComponentData Finalise()
     {
+        if (IsUnique)
+            IndexType = EntityIndexType.None;
+        if (IndexType != EntityIndexType.None && Fields.Length == 0)
+            IndexType = EntityIndexType.None;
         return this;
     }
 

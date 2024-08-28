@@ -69,6 +69,8 @@ public sealed class GenerateComponent
                      }
                      public static void DestroyComponent({{componentData.Name}} component)
                      {
+                        if(component == null)
+                            return;
                          {{destroyAssignments}}
                          ComponentPool.Push(component);
                      }

@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
 namespace Entitas.Generators;
@@ -14,43 +16,13 @@ public sealed class GenerateEntity
         var contextData = value.ContextData;
         var componentDatas = value.ComponentDatas;
 
-        var entityComponents = componentDatas.Where(x => !x.IsUnique).ToArray();
-        // var interfaceImplementations = componentDatas.Length == 0 ? string.Empty : string.Join("", componentDatas.Select(static component => $", {component.Namespace.NamespaceClassifier()}I{component.Prefix}Entity"));
-        // var fieldDeclarations = componentDatas.Length == 0 ? string.Empty : string.Join("\n", componentDatas.Select(static component => $"{component.FullName} {component.Name};"));
-        var destroyCalls = entityComponents.Length == 0 ? string.Empty : string.Join("\n", entityComponents.Select(static component => $"{component.FullName}.DestroyComponent(this.{component.Name}); \n this.{component.Name} = null;"));
-
         var stringBuilder = new StringBuilder();
         try
         {
-            var content = $$"""
-                            public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase
-                            {
-                                public {{contextData.Name}} Context { get; private set; }
-                                internal {{contextData.Prefix}}Entity(){}
-
-
-                                public void InitializeEntity(int id, {{contextData.Name}} context)
-                                {
-                                    Id = id;
-                                    Context = context;
-                                    IsEnabled = true;
-                                }
-                                public void DestroyImmediate()
-                                {
-                            {{destroyCalls}}
-                                    Context.ReturnEntity(this);
-                                    Context = null;
-                                    IsEnabled = false;
-                                    Id = -1;
-                                }
-                            }
-                            """;
-
             stringBuilder.AppendGenerationWarning(nameof(GenerateEntity));
-
             using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
-                stringBuilder.AppendLine(content);
+                stringBuilder.AppendLine(GetContent(contextData, componentDatas));
             }
         }
         catch (Exception e)
@@ -59,5 +31,61 @@ public sealed class GenerateEntity
         }
 
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
+    }
+
+    static string GetContent(ContextData contextData, ImmutableArray<ComponentData> componentDatas)
+    {
+        var entityComponents = componentDatas.Where(x => !x.IsUnique).ToArray();
+        var destroyCalls = entityComponents.Length == 0
+            ? string.Empty
+            : string.Join("\n\n", entityComponents
+                .Select(static c => $"{(c.IndexType == EntityIndexType.None ? string.Empty : $"\t\tContext.SetIndexed{c.Prefix}Entity(null, {c.GetVariableMethodArguments(c.Name)});\n")}\t\t{c.FullName}.DestroyComponent(this.{c.Name});\n\t\tthis.{c.Name} = null;"));
+        return $$"""
+                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>
+                 {
+                     public {{contextData.Name}} Context { get; private set; }
+                     internal {{contextData.Prefix}}Entity(){}
+
+                     public void InitializeEntity(int id, {{contextData.Name}} context)
+                     {
+                         Id = id;
+                         Context = context;
+                         IsEnabled = true;
+                     }
+                     public void DestroyImmediate()
+                     {
+                 {{destroyCalls}}
+                         Context.ReturnEntity(this);
+                         Context = null;
+                         IsEnabled = false;
+                         Id = -1;
+                     }
+
+                     public bool Equals({{contextData.Prefix}}Entity other)
+                     {
+                         if (ReferenceEquals(null, other)) return false;
+                         if (ReferenceEquals(this, other)) return true;
+                         return IsEnabled && other.IsEnabled && Id == other.Id && Context.Id == other.Context.Id;
+                     }
+
+                     public override bool Equals(object obj)
+                     {
+                         if (ReferenceEquals(null, obj)) return false;
+                         if (ReferenceEquals(this, obj)) return true;
+                         if (obj.GetType() != this.GetType()) return false;
+                         return Equals(({{contextData.Prefix}}Entity)obj);
+                     }
+
+                     public override int GetHashCode()
+                     {
+                         return System.HashCode.Combine(Id, Context.Id);
+                     }
+                 }
+
+                 public static class {{contextData.Prefix}}EntityEnumerableExtensions
+                 {
+                     public static {{contextData.Name}} GetContext(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities) => System.Linq.Enumerable.FirstOrDefault(entities)?.Context;
+                 }
+                 """;
     }
 }

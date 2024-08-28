@@ -22,7 +22,7 @@ public sealed class GenerateContextExtensions
             stringBuilder.AppendGenerationWarning(nameof(GenerateContextExtensions));
             using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
-                stringBuilder.AppendLine(GetContent(contextData, componentData));
+                stringBuilder.AppendLine(GetClassContent(contextData, componentData));
 
                 if (componentData.IsUnique)
                 {
@@ -44,7 +44,7 @@ public sealed class GenerateContextExtensions
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Name}{componentData.Prefix}Extensions"), stringBuilder.ToString());
     }
 
-    static string GetContent(ContextData contextData, ComponentData componentData)
+    static string GetClassContent(ContextData contextData, ComponentData componentData)
     {
         return $$"""
                  partial class {{contextData.Name}} : {{componentData.Namespace.NamespaceClassifier()}}I{{componentData.Prefix}}Context
@@ -54,9 +54,9 @@ public sealed class GenerateContextExtensions
 
     static string GetUniqueContent(ContextData contextData, ComponentData componentData)
     {
-        var methodSignature = componentData.GetComponentValuesMethodSignature();
-        var methodArguments = componentData.GetComponentValuesMethodArguments();
-        var equalityComparer = componentData.GetComponentValuesEqualityComparer();
+        var methodSignature = componentData.GetMethodSignature();
+        var methodArguments = componentData.GetMethodArguments();
+        var equalityComparer = componentData.GetEqualityComparer();
         return $$"""
                   {{componentData.FullName}} {{componentData.Name}};
 
@@ -113,8 +113,8 @@ public sealed class GenerateContextExtensions
 
     static string GetIndexContent(ContextData contextData, ComponentData componentData)
     {
-        var methodSignature = componentData.GetComponentValuesMethodSignature();
-        var methodArguments = componentData.GetComponentValuesMethodArguments();
+        var methodSignature = componentData.GetMethodSignature();
+        var methodArguments = componentData.GetMethodArguments();
 
         switch (componentData.IndexType)
         {
@@ -144,18 +144,20 @@ public sealed class GenerateContextExtensions
             case EntityIndexType.Dictionary:
                 var hashCodeFromMethodArguments = componentData.GetHashCodeFromMethodArguments();
                 return $$"""
-                         System.Collections.Generic.Dictionary<{{contextData.Prefix}}Entity> Indexed{{componentData.Prefix}}Entities = new ();
+                         System.Collections.Generic.Dictionary<int, {{contextData.Prefix}}Entity> Indexed{{componentData.Prefix}}Entities = new ();
                          public {{contextData.Prefix}}Entity GetEntityWith{{componentData.Prefix}}({{methodSignature}})
                          {
-                             var hashCode = {{hashCodeFromMethodArguments}};
-                             Indexed{{componentData.Prefix}}Entities.TryGetValue(hashCode, out value)
-                             return value;
+                         {{hashCodeFromMethodArguments}};
+                             if(Indexed{{componentData.Prefix}}Entities.TryGetValue(_hashCode, out var indexedEntity))
+                                 return indexedEntity.IsEnabled ? indexedEntity : null;
+                            else
+                                return null;
                          }
 
                          public void SetIndexed{{componentData.Prefix}}Entity({{contextData.Prefix}}Entity entity, {{methodSignature}})
                          {
-                             var hashCode = {{hashCodeFromMethodArguments}};
-                             Indexed{{componentData.Prefix}}Entities[i] = entity;
+                         {{hashCodeFromMethodArguments}};
+                             Indexed{{componentData.Prefix}}Entities[_hashCode] = entity;
                          }
                          """;
             case EntityIndexType.None:
