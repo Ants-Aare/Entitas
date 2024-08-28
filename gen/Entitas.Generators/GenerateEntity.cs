@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
@@ -11,10 +10,9 @@ namespace Entitas.Generators;
 
 public sealed class GenerateEntity
 {
-    public static void GenerateEntityOutput(SourceProductionContext context, ContextWithComponents value)
+    public static void GenerateEntityOutput(SourceProductionContext context, ContextWithComponents data)
     {
-        var contextData = value.ContextData;
-        var componentDatas = value.ComponentDatas;
+        var contextData = data.ContextData;
 
         var stringBuilder = new StringBuilder();
         try
@@ -22,7 +20,7 @@ public sealed class GenerateEntity
             stringBuilder.AppendGenerationWarning(nameof(GenerateEntity));
             using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
-                stringBuilder.AppendLine(GetContent(contextData, componentDatas));
+                stringBuilder.AppendLine(GetContent(data));
             }
         }
         catch (Exception e)
@@ -33,15 +31,23 @@ public sealed class GenerateEntity
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
     }
 
-    static string GetContent(ContextData contextData, ImmutableArray<ComponentData> componentDatas)
+    static string GetContent(ContextWithComponents data)
     {
+        var contextData = data.ContextData;
+        var componentDatas = data.ComponentDatas;
+
         var entityComponents = componentDatas.Where(x => !x.IsUnique).ToArray();
         var destroyCalls = entityComponents.Length == 0
             ? string.Empty
             : string.Join("\n\n", entityComponents
                 .Select(static c => $"{(c.IndexType == EntityIndexType.None ? string.Empty : $"\t\tContext.SetIndexed{c.Prefix}Entity(null, {c.GetVariableMethodArguments(c.Name)});\n")}\t\t{c.FullName}.DestroyComponent(this.{c.Name});\n\t\tthis.{c.Name} = null;"));
+
+        var systemDatas = data.SystemDatas.Where(x=> x.IsReactiveSystem && x.HasMultipleConstraints()).ToList();
+        var systemInterfaces = systemDatas.Count == 0 ? string.Empty : ',' + string.Join(", ", systemDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Entity"));
+
+
         return $$"""
-                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>
+                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}
                  {
                      public {{contextData.Name}} Context { get; private set; }
                      internal {{contextData.Prefix}}Entity(){}

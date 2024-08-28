@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
 namespace Entitas.Generators;
@@ -17,24 +18,15 @@ public sealed class GenerateSystem
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            var hasMultipleConstraints = systemData.TriggeredBy.Length + systemData.EntityIs.Length > 1;
+            var hasMultipleConstraints = systemData.HasMultipleConstraints();
 
-            string entityType;
-            if (hasMultipleConstraints)
-            {
-                entityType = $"I{systemData.Name}Entity";
-            }
-            else
-            {
-                var componentData = componentDatas.First(x => x.Name == systemData.TriggeredBy[0].component);
-                entityType = $"{componentData.Namespace.NamespaceClassifier()}I{componentData.Prefix}Entity";
-            }
+            var entityType = systemData.GetEntityType(componentDatas.First(x => x.Name == systemData.TriggeredBy[0].component));
 
             var content = $$"""
                             public sealed partial class {{systemData.Name}} : Entitas.IReactiveSystem<{{entityType}}>
                             {
                                 static readonly System.Collections.Generic.HashSet<{{systemData.Name}}> Instances = new();
-                                readonly System.Collections.Generic.List<{{entityType}}> _collector = new ();
+                                readonly System.Collections.Generic.HashSet<{{entityType}}> _collector = new ();
                                 readonly System.Collections.Generic.List<{{entityType}}> _buffer = new ();
                                 public static void UpdateSystems()
                                 {
@@ -69,6 +61,11 @@ public sealed class GenerateSystem
 
                                 public void Disable() =>Instances.Remove(this);
 
+                                public void OnEntityTriggered({{entityType}} entity)
+                                {
+                                    _collector.Add(entity);
+                                }
+
                                 ~{{systemData.Name}}()=>Instances.Remove(this);
                             }
                             """;
@@ -82,9 +79,6 @@ public sealed class GenerateSystem
                 if (hasMultipleConstraints)
                 {
                     var enumerable = componentDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Prefix}Entity");
-                    // var enumerable = systemData.TriggeredBy.Select(x => x.component)
-                    //     .Concat(systemData.EntityIs)
-                    //     .Select(x=> $"I{x}Entity");
                     var interfaceDefinition = $"public interface I{systemData.Name}Entity : {string.Join(", ", enumerable)}{{ }}";
                     stringBuilder.AppendLine(interfaceDefinition);
                 }

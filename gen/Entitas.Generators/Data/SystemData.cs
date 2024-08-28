@@ -15,6 +15,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
     public string Name { get; private set; }
+    public string ValidLowerName { get; private set; }
 
     public bool IsInitializeSystem { get; private set; }
 
@@ -36,6 +37,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver
         Namespace = null!;
         FullName = null!;
         Name = null!;
+        ValidLowerName = null!;
         IsInitializeSystem = false;
         IsReactiveSystem = false;
         ReactiveExecution = Execution.Manual;
@@ -67,6 +69,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver
 
         FullName = symbol.ToDisplayString();
         Name = symbol.Name;
+        ValidLowerName = Name.ToValidLowerName();
         return true;
     }
 

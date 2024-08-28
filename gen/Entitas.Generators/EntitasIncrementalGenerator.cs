@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -30,26 +31,62 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .CreateSyntaxProvider(ContextData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ContextData>)
             .RemoveEmptyValues();
 
+        var systems = systemDatas.Collect().Sort((x,y)=>
+        {
+            var reactiveOrder = x.ReactiveOrder.CompareTo(y.ReactiveOrder);
+            return reactiveOrder == 0 ? string.Compare(x.Name, y.Name, StringComparison.Ordinal) : reactiveOrder;
+        });
+        var components = componentDatas.Collect();
+        var contexts = contextDatas.Collect();
+
         var componentsWithContexts = componentDatas
-            .Combine(contextDatas.Collect())
+            .Combine(contexts)
             .Select(CombineComponentsWithContexts);
         var contextsWithComponents = contextDatas
-            .Combine(componentDatas.Collect())
+            .Combine(components)
+            .Combine(systems)
             .Select(CombineContextsWithComponents);
         var systemsWithComponents = systemDatas
-            .Combine(componentDatas.Collect())
+            .Combine(components)
             .Select(CombineSystemsWithComponents);
 
-        var componentContextPair = componentsWithContexts.SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData)));
+        var componentContextPairWithSystems = componentsWithContexts.SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData))).Combine(systems)
+            .Select(CombineWithSystems);
 
         initContext.RegisterSourceOutput(componentDatas, GenerateComponent.GenerateComponentOutput);
-        initContext.RegisterSourceOutput(componentContextPair, GenerateEntityExtensions.GenerateEntityExtensionsOutput);
-        initContext.RegisterSourceOutput(componentContextPair, GenerateContextExtensions.GenerateContextExtensionsOutput);
+        initContext.RegisterSourceOutput(componentContextPairWithSystems, GenerateEntityExtensions.GenerateEntityExtensionsOutput);
+        initContext.RegisterSourceOutput(componentContextPairWithSystems, GenerateContextExtensions.GenerateContextExtensionsOutput);
         initContext.RegisterSourceOutput(systemsWithComponents, GenerateSystem.GenerateSystemOutput);
 
         initContext.RegisterSourceOutput(contextsWithComponents, GenerateContext.GenerateContextOutput);
         initContext.RegisterSourceOutput(contextsWithComponents, GenerateEntity.GenerateEntityOutput);
         initContext.RegisterSourceOutput(componentsWithContexts, GenerateInterfaceExtensions.GenerateInterfaceExtensionsOutput);
+    }
+
+    ComponentContextWithSystems CombineWithSystems(((ComponentData ComponentData, ContextData ContextData) data, ImmutableArray<SystemData> systemDatas) values, CancellationToken arg2)
+    {
+        var systems = new List<SystemData>();
+        foreach (var systemData in values.systemDatas)
+        {
+            if(!systemData.IsReactiveSystem)
+                continue;
+
+            if (systemData.TriggeredBy.Any(x => x.component == values.data.ComponentData.Name))
+            {
+                if(values.data.ContextData.Systems.Contains(systemData.Name))
+                {
+                    systems.Add(systemData);
+                    continue;
+                }
+
+                if(systemData.ComponentAddedContexts.Contains(values.data.ContextData.Name))
+                {
+                    systems.Add(systemData);
+                }
+            }
+        }
+
+        return new ComponentContextWithSystems(values.data.ComponentData, values.data.ContextData, systems.ToImmutableArray());
     }
 
     static ComponentWithContexts CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
@@ -91,22 +128,36 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         return new SystemWithComponents(data.systemData, componentDatas.ToImmutableArray());
     }
 
-    static ContextWithComponents CombineContextsWithComponents((ContextData contextData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
+    static ContextWithComponents CombineContextsWithComponents(((ContextData contextData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<SystemData> systemDatas) data, CancellationToken ct)
     {
         var contexts = new List<ComponentData>();
-        foreach (var componentData in data.componentDatas)
+        foreach (var componentData in data.Left.componentDatas)
         {
-            if (data.contextData.Components.Contains(componentData.Name))
+            if (data.Left.contextData.Components.Contains(componentData.Name))
             {
                 contexts.Add(componentData);
             }
 
-            if (componentData.ComponentAddedContexts.Contains(data.contextData.Name))
+            if (componentData.ComponentAddedContexts.Contains(data.Left.contextData.Name))
             {
                 contexts.Add(componentData);
             }
         }
 
-        return new ContextWithComponents(data.contextData, contexts.ToImmutableArray());
+        var systems = new List<SystemData>();
+        foreach (var systemData in data.systemDatas)
+        {
+            if (data.Left.contextData.Systems.Contains(systemData.Name))
+            {
+                systems.Add(systemData);
+            }
+
+            if (systemData.ComponentAddedContexts.Contains(data.Left.contextData.Name))
+            {
+                systems.Add(systemData);
+            }
+        }
+
+        return new ContextWithComponents(data.Left.contextData, contexts.ToImmutableArray(), systems.ToImmutableArray());
     }
 }

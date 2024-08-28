@@ -5,6 +5,17 @@ namespace Entitas.Generators.Data;
 
 public readonly struct ContextWithComponents : IEquatable<ContextWithComponents>
 {
+    public readonly ContextData ContextData;
+    public readonly ImmutableArray<ComponentData> ComponentDatas;
+    public readonly ImmutableArray<SystemData> SystemDatas;
+
+    public ContextWithComponents(ContextData contextData, ImmutableArray<ComponentData> componentDatas, ImmutableArray<SystemData> systemDatas)
+    {
+        ContextData = contextData;
+        ComponentDatas = componentDatas;
+        SystemDatas = systemDatas;
+    }
+
     public bool Equals(ContextWithComponents other)
     {
         return ContextData.Equals(other.ContextData) && ComponentDatas.Equals(other.ComponentDatas);
@@ -21,13 +32,5 @@ public readonly struct ContextWithComponents : IEquatable<ContextWithComponents>
         {
             return (ContextData.GetHashCode() * 397) ^ ComponentDatas.GetHashCode();
         }
-    }
-
-    public readonly ContextData ContextData;
-    public readonly ImmutableArray<ComponentData> ComponentDatas;
-    public ContextWithComponents(ContextData contextData, ImmutableArray<ComponentData> componentDatas)
-    {
-        ContextData = contextData;
-        ComponentDatas = componentDatas;
     }
 }

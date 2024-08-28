@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
@@ -9,12 +10,10 @@ namespace Entitas.Generators;
 
 public sealed class GenerateContextExtensions
 {
-    public static void GenerateContextExtensionsOutput(SourceProductionContext context, (ComponentData ComponentData, ContextData ContextData) value)
+    public static void GenerateContextExtensionsOutput(SourceProductionContext context, ComponentContextWithSystems data)
     {
-        var componentData = value.ComponentData;
-        var contextData = value.ContextData;
-        // if (componentData is { IsUnique: false, IndexType: EntityIndexType.None })
-        //     return;
+        var componentData = data.ComponentData;
+        var contextData = data.ContextData;
 
         var stringBuilder = new StringBuilder();
         try
@@ -26,7 +25,7 @@ public sealed class GenerateContextExtensions
 
                 if (componentData.IsUnique)
                 {
-                    stringBuilder.AppendLine(GetUniqueContent(contextData, componentData));
+                    stringBuilder.AppendLine(GetUniqueContent(data));
                 }
                 else if (componentData.IndexType == EntityIndexType.Array || componentData.IndexType == EntityIndexType.Dictionary)
                 {
@@ -52,11 +51,45 @@ public sealed class GenerateContextExtensions
                  """;
     }
 
-    static string GetUniqueContent(ContextData contextData, ComponentData componentData)
+    static string GetUniqueContent(ComponentContextWithSystems data)
     {
+        var componentData = data.ComponentData;
+        var contextData = data.ContextData;
+
         var methodSignature = componentData.GetMethodSignature();
         var methodArguments = componentData.GetMethodArguments();
         var equalityComparer = componentData.GetEqualityComparer();
+
+        var onAddedEvents = new StringBuilder();
+        var onSetEvents = new StringBuilder();
+        var onChangedEvents = new StringBuilder();
+        var onRemovedEvents = new StringBuilder();
+
+        foreach (var systemData in data.SystemDatas)
+        {
+            var systemCall = $"{systemData.ValidLowerName}.OnEntityTriggered(contextEntity);";
+            var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.Name);
+            switch (eventType)
+            {
+                case EventType.Added:
+                    onAddedEvents.AppendLine(systemCall);
+                    onSetEvents.AppendLine(systemCall);
+                    onChangedEvents.AppendLine(systemCall);
+                    break;
+                case EventType.Removed:
+                    onRemovedEvents.AppendLine(systemCall);
+                    break;
+                case EventType.AddedOrRemoved:
+                    onAddedEvents.AppendLine(systemCall);
+                    onSetEvents.AppendLine(systemCall);
+                    onChangedEvents.AppendLine(systemCall);
+                    onRemovedEvents.AppendLine(systemCall);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+
         return $$"""
                   {{componentData.FullName}} {{componentData.Name}};
 
@@ -74,16 +107,19 @@ public sealed class GenerateContextExtensions
                      if (this.{{componentData.Name}} == null)
                      {
                          this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+                         {{onAddedEvents}}
                          return this;
                      }
 
                      if (Has{{componentData.Prefix}}(){{equalityComparer}})
                      {
+                        {{onSetEvents}}
                          return this;
                      }
-
                      var previousComponent = this.{{componentData.Name}};
                      this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+
+                     {{onChangedEvents}}
 
                      {{componentData.FullName}}.DestroyComponent(previousComponent);
                      return this;
@@ -103,9 +139,9 @@ public sealed class GenerateContextExtensions
 
                      var previousComponent = this.{{componentData.Name}};
                      this.{{componentData.Name}} = null;
+                     {{onRemovedEvents}}
 
                      {{componentData.FullName}}.DestroyComponent(previousComponent);
-
                      return this;
                  }
                  """;

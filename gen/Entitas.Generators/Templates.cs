@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Entitas.Generators
 {
@@ -37,6 +38,13 @@ namespace Entitas.Generators
             return !string.IsNullOrEmpty(@namespace)
                 ? $"{@namespace}.{suffix}"
                 : suffix;
+        }
+        public static string ToValidLowerName(this string value)
+        {
+            var lowerFirst = char.ToLower(value[0]) + value.Substring(1);
+            return SyntaxFacts.GetKeywordKind(lowerFirst) == SyntaxKind.None
+                ? lowerFirst
+                : $"@{lowerFirst}";
         }
 
         public static string NamespaceDeclaration(string? @namespace, string content)

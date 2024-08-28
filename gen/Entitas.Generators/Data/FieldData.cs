@@ -26,16 +26,8 @@ public struct FieldData : /*IAttributeResolver,*/ IFieldResolver, IEquatable<Fie
             : fieldSymbol.Type.ToDisplayString();
 
         Name = fieldSymbol.Name;
-        ValidLowerName = ToValidLowerName(Name);
+        ValidLowerName = Name.ToValidLowerName();
         return true;
-    }
-
-    static string ToValidLowerName(string value)
-    {
-        var lowerFirst = char.ToLower(value[0]) + value.Substring(1);
-        return SyntaxFacts.GetKeywordKind(lowerFirst) == SyntaxKind.None
-            ? lowerFirst
-            : $"@{lowerFirst}";
     }
 
     // public bool TryResolveAttribute(AttributeData attributeData)

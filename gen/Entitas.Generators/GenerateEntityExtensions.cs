@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
@@ -9,10 +10,10 @@ namespace Entitas.Generators;
 
 public sealed class GenerateEntityExtensions
 {
-    public static void GenerateEntityExtensionsOutput(SourceProductionContext context, (ComponentData ComponentData, ContextData ContextData) value)
+    public static void GenerateEntityExtensionsOutput(SourceProductionContext context, ComponentContextWithSystems data)
     {
-        var componentData = value.ComponentData;
-        var contextData = value.ContextData;
+        var componentData = data.ComponentData;
+        var contextData = data.ContextData;
 
         var stringBuilder = new StringBuilder();
         try
@@ -22,10 +23,9 @@ public sealed class GenerateEntityExtensions
             {
                 stringBuilder.AppendLine(GetClassContent(contextData, componentData));
                 if (componentData.IsUnique)
-                    stringBuilder.AppendLine(GetUniqueContent(contextData, componentData));
+                    stringBuilder.AppendLine(GetUniqueContent(data));
                 else
-                    stringBuilder.AppendLine(GetDefaultContent(contextData, componentData));
-                // stringBuilder.Append('}');
+                    stringBuilder.AppendLine(GetDefaultContent(data));
             }
         }
         catch (Exception e)
@@ -44,8 +44,10 @@ public sealed class GenerateEntityExtensions
                  """;
     }
 
-    static string GetDefaultContent(ContextData contextData, ComponentData componentData)
+    static string GetDefaultContent(ComponentContextWithSystems data)
     {
+        var componentData = data.ComponentData;
+        var contextData = data.ContextData;
         var methodSignature = componentData.GetMethodSignature();
         var methodArguments = componentData.GetMethodArguments();
         var equalityComparer = componentData.GetEqualityComparer();
@@ -62,6 +64,31 @@ public sealed class GenerateEntityExtensions
             onAddedEvents.AppendLine($"Context.SetIndexed{componentData.Prefix}Entity(this, {methodArguments});");
             onChangedEvents.AppendLine($"Context.SetIndexed{componentData.Prefix}Entity(null, {componentValues});\nContext.SetIndexed{componentData.Prefix}Entity(this, {methodArguments});");
             onRemovedEvents.AppendLine($"Context.SetIndexed{componentData.Prefix}Entity(null, {componentValues});");
+        }
+
+        foreach (var systemData in data.SystemDatas)
+        {
+            var systemCall = $"Context.{systemData.ValidLowerName}.OnEntityTriggered(this);";
+            var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.Name);
+            switch (eventType)
+            {
+                case EventType.Added:
+                    onAddedEvents.AppendLine(systemCall);
+                    onSetEvents.AppendLine(systemCall);
+                    onChangedEvents.AppendLine(systemCall);
+                    break;
+                case EventType.Removed:
+                    onRemovedEvents.AppendLine(systemCall);
+                    break;
+                case EventType.AddedOrRemoved:
+                    onAddedEvents.AppendLine(systemCall);
+                    onSetEvents.AppendLine(systemCall);
+                    onChangedEvents.AppendLine(systemCall);
+                    onRemovedEvents.AppendLine(systemCall);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         return $$"""
@@ -98,6 +125,7 @@ public sealed class GenerateEntityExtensions
 
                          //OnChangedEvents:
                          {{onChangedEvents}}
+
                          {{componentData.FullName}}.DestroyComponent(component);
                          return this;
                      }
@@ -119,6 +147,7 @@ public sealed class GenerateEntityExtensions
 
                          //OnRemovedEvents:
                          {{onRemovedEvents}}
+
                          {{componentData.FullName}}.DestroyComponent(component);
                          return this;
                      }
@@ -136,8 +165,10 @@ public sealed class GenerateEntityExtensions
                  """;
     }
 
-    static string GetUniqueContent(ContextData contextData, ComponentData componentData)
+    static string GetUniqueContent(ComponentContextWithSystems data)
     {
+        var componentData = data.ComponentData;
+        var contextData = data.ContextData;
         var methodSignature = componentData.GetMethodSignature();
         var methodArguments = componentData.GetMethodArguments();
         var methodSignatureWithLeadingComma = componentData.GetMethodSignatureLeadingComma();
