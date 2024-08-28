@@ -4,16 +4,16 @@ using Entitas.Generators.Data;
 
 namespace Entitas.Generators;
 
-public readonly struct SystemWithComponents : IEquatable<SystemWithComponents>
+public readonly struct ExtendedSystemData : IEquatable<ExtendedSystemData>
 {
-    public bool Equals(SystemWithComponents other)
+    public bool Equals(ExtendedSystemData other)
     {
         return SystemData.Equals(other.SystemData) && ComponentDatas.Equals(other.ComponentDatas);
     }
 
     public override bool Equals(object? obj)
     {
-        return obj is SystemWithComponents other && Equals(other);
+        return obj is ExtendedSystemData other && Equals(other);
     }
 
     public override int GetHashCode()
@@ -27,7 +27,7 @@ public readonly struct SystemWithComponents : IEquatable<SystemWithComponents>
     public readonly SystemData SystemData;
     public readonly ImmutableArray<ComponentData> ComponentDatas;
 
-    public SystemWithComponents(SystemData systemData, ImmutableArray<ComponentData> componentDatas)
+    public ExtendedSystemData(SystemData systemData, ImmutableArray<ComponentData> componentDatas)
     {
         SystemData = systemData;
         ComponentDatas = componentDatas;
