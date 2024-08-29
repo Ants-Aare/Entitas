@@ -11,10 +11,10 @@ namespace Entitas.Generators;
 
 public sealed class GenerateInterfaceExtensions
 {
-    public static void GenerateInterfaceExtensionsOutput(SourceProductionContext context, ComponentWithContexts componentWithContexts)
+    public static void GenerateInterfaceExtensionsOutput(SourceProductionContext context, ExtendedComponentData extendedComponentData)
     {
-        var componentData = componentWithContexts.ComponentData;
-        var contextDatas = componentWithContexts.ContextDatas;
+        var componentData = extendedComponentData.ComponentData;
+        var contextDatas = extendedComponentData.ContextDatas;
         // var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
 
         var stringBuilder = new StringBuilder();
@@ -52,7 +52,7 @@ public sealed class GenerateInterfaceExtensions
         var getIndexedEntity = contextDatas.Length == 0 ? string.Empty : string.Join("\n", contextDatas.Select(x => $"        {x.FullName} {x.Name} => {x.Name}.GetEntityWith{componentData.Prefix}({methodArguments}),"));
 
         return $$"""
-                 public static I{{componentData.Prefix}}Entity GetEntityWith{{componentData.Prefix}}(I{{componentData.Prefix}}Context context, {{methodSignature}})
+                 public static I{{componentData.Prefix}}Entity GetEntityWith{{componentData.Prefix}}(this I{{componentData.Prefix}}Context context, {{methodSignature}})
                      => context switch
                      {
                  {{getIndexedEntity}}
@@ -118,37 +118,42 @@ public sealed class GenerateInterfaceExtensions
         return $$"""
                  public static class I{{componentData.Prefix}}Extensions
                  {
-                     public static I{{componentData.Prefix}}Context GetContext(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities) => System.Linq.Enumerable.FirstOrDefault(entities)?.GetContext();
-                     public static I{{componentData.Prefix}}Context GetContext(this I{{componentData.Prefix}}Entity entity)
+                     public static I{{componentData.Prefix}}Context GetI{{componentData.Prefix}}Context(this System.Collections.Generic.IEnumerable<I{{componentData.Prefix}}Entity> entities) => System.Linq.Enumerable.FirstOrDefault(entities)?.GetI{{componentData.Prefix}}Context();
+                     public static I{{componentData.Prefix}}Context GetI{{componentData.Prefix}}Context(this I{{componentData.Prefix}}Entity entity)
                         => entity switch
                         {
                  {{getContext}}
                         _ => default
                         };
+
                      public static bool Has{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity)
                         => entity switch
                         {
                  {{hasComponent}}
                         _ => default
                         };
+
                      public static {{componentData.FullName}} Get{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity)
                         => entity switch
                         {
                  {{getComponent}}
                         _ => default
                         };
+
                      public static I{{componentData.Prefix}}Entity Set{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity{{methodSignatureWithLeadingComma}})
                         => entity switch
                         {
                  {{setComponent}}
                         _ => default
                         };
+
                      public static I{{componentData.Prefix}}Entity Remove{{componentData.Prefix}}(this I{{componentData.Prefix}}Entity entity)
                         => entity switch
                         {
                  {{removeComponent}}
                         _ => default
                         };
+
                      public static I{{componentData.Prefix}}Entity CreateEntity(this I{{componentData.Prefix}}Context context)
                         => context switch
                         {

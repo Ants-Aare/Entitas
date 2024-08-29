@@ -3,13 +3,14 @@ using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
 namespace Entitas.Generators;
 
 public sealed class GenerateContext
 {
-    public static void GenerateContextOutput(SourceProductionContext context, ContextWithComponents data)
+    public static void GenerateContextOutput(SourceProductionContext context, ExtendedContextData data)
     {
         var contextData = data.ContextData;
 
@@ -36,24 +37,28 @@ public sealed class GenerateContext
         context.AddSource(Templates.FileNameHint(contextData.Namespace, contextData.Name), stringBuilder.ToString());
     }
 
-    static string GetContent(ContextWithComponents data)
+    static string GetContent(ExtendedContextData data)
     {
         var contextData = data.ContextData;
         var componentDatas = data.ComponentDatas;
         var systemDatas = data.SystemDatas;
-        var strings = componentDatas.Length == 0 ? string.Empty : string.Join(", ", componentDatas.Select(static component => $"\"{component.Name}\""));
-        var types = componentDatas.Length == 0 ? string.Empty : string.Join(", ", componentDatas.Select(static component => $"typeof({component.FullName})"));
+        var strings = componentDatas.Length == 0 ? "null" : $"new[]{{{string.Join(", ", componentDatas.Select(static component => $"\"{component.Name}\""))}}}";
+        var types = componentDatas.Length == 0 ? "null" : $"new[]{{{string.Join(", ", componentDatas.Select(static component => $"typeof({component.FullName})"))}}}";
         var systemReferences = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t", systemDatas.Select(static system => $"public {system.FullName} {system.ValidLowerName};"));
         var constructorSignature = systemDatas.Length == 0 ? string.Empty : string.Join(", ", systemDatas.Select(static system => $"{system.FullName} {system.Name}"));
-        var constructorBody = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"context.{system.ValidLowerName} = {system.Name};\n\t\t{system.Name}.Enable();"));
+        var constructorBody = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"context.{system.ValidLowerName} = {system.Name};\n\t\t{system.Name}.Context = context;\n\t\t{system.Name}.Enable();\n"));
+
+        var systems = systemDatas.Where(x=> x.NeedsCustomInterface()).ToList();
+        var systemInterfaces = systems.Count == 0 ? string.Empty : ',' + string.Join(", ", systems.Select(static x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Context"));
+
 
         return $$"""
-                 public sealed partial class {{contextData.Name}} : Entitas.ContextBase
+                 public sealed partial class {{contextData.Name}} : Entitas.ContextBase{{systemInterfaces}}
                  {
                      public const string Name = "{{contextData.Name}}";
                      public static readonly Entitas.ContextInfo ContextInfo = new Entitas.ContextInfo("{{contextData.Name}}",
-                         new[]{{{strings}}},
-                         new[]{{{types}}});
+                         {{strings}},
+                         {{types}});
 
                      static int _creationIndex;
                      static readonly System.Collections.Generic.Stack<{{contextData.Prefix}}Entity> EntityPool;

@@ -10,7 +10,7 @@ namespace Entitas.Generators;
 
 public sealed class GenerateEntity
 {
-    public static void GenerateEntityOutput(SourceProductionContext context, ContextWithComponents data)
+    public static void GenerateEntityOutput(SourceProductionContext context, ExtendedContextData data)
     {
         var contextData = data.ContextData;
 
@@ -31,7 +31,7 @@ public sealed class GenerateEntity
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
     }
 
-    static string GetContent(ContextWithComponents data)
+    static string GetContent(ExtendedContextData data)
     {
         var contextData = data.ContextData;
         var componentDatas = data.ComponentDatas;
@@ -42,9 +42,8 @@ public sealed class GenerateEntity
             : string.Join("\n\n", entityComponents
                 .Select(static c => $"{(c.IndexType == EntityIndexType.None ? string.Empty : $"\t\tContext.SetIndexed{c.Prefix}Entity(null, {c.GetVariableMethodArguments(c.Name)});\n")}\t\t{c.FullName}.DestroyComponent(this.{c.Name});\n\t\tthis.{c.Name} = null;"));
 
-        var systemDatas = data.SystemDatas.Where(x=> x.IsReactiveSystem && x.HasMultipleConstraints()).ToList();
+        var systemDatas = data.SystemDatas.Where(x=> x.IsReactiveSystem && x.NeedsCustomInterface()).ToList();
         var systemInterfaces = systemDatas.Count == 0 ? string.Empty : ',' + string.Join(", ", systemDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Entity"));
-
 
         return $$"""
                  public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}

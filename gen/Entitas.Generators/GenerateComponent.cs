@@ -19,7 +19,7 @@ public sealed class GenerateComponent
 
             using (new NamespaceBuilder(stringBuilder, componentData.Namespace))
             {
-                stringBuilder.AppendLine($"public interface I{componentData.Prefix}Context/* : Entitas.IContext */{{ }} \npublic interface I{componentData.Prefix}Entity : Entitas.IEntity {{ }} \n");
+                stringBuilder.AppendLine($"public interface I{componentData.Prefix}Context : Entitas.IContext {{ }} \npublic interface I{componentData.Prefix}Entity : Entitas.IEntity {{ }} \n");
                 stringBuilder.AppendLine(GetContent(componentData));
             }
 

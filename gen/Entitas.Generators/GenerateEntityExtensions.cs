@@ -10,7 +10,7 @@ namespace Entitas.Generators;
 
 public sealed class GenerateEntityExtensions
 {
-    public static void GenerateEntityExtensionsOutput(SourceProductionContext context, ComponentContextWithSystems data)
+    public static void GenerateEntityExtensionsOutput(SourceProductionContext context, ExtendedComponentDataWithSystems data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -44,7 +44,7 @@ public sealed class GenerateEntityExtensions
                  """;
     }
 
-    static string GetDefaultContent(ComponentContextWithSystems data)
+    static string GetDefaultContent(ExtendedComponentDataWithSystems data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -165,7 +165,7 @@ public sealed class GenerateEntityExtensions
                  """;
     }
 
-    static string GetUniqueContent(ComponentContextWithSystems data)
+    static string GetUniqueContent(ExtendedComponentDataWithSystems data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;

@@ -10,7 +10,7 @@ namespace Entitas.Generators;
 
 public sealed class GenerateContextExtensions
 {
-    public static void GenerateContextExtensionsOutput(SourceProductionContext context, ComponentContextWithSystems data)
+    public static void GenerateContextExtensionsOutput(SourceProductionContext context, ExtendedComponentDataWithSystems data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -51,7 +51,7 @@ public sealed class GenerateContextExtensions
                  """;
     }
 
-    static string GetUniqueContent(ComponentContextWithSystems data)
+    static string GetUniqueContent(ExtendedComponentDataWithSystems data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -118,9 +118,7 @@ public sealed class GenerateContextExtensions
                      }
                      var previousComponent = this.{{componentData.Name}};
                      this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
-
                      {{onChangedEvents}}
-
                      {{componentData.FullName}}.DestroyComponent(previousComponent);
                      return this;
                  }
@@ -140,7 +138,6 @@ public sealed class GenerateContextExtensions
                      var previousComponent = this.{{componentData.Name}};
                      this.{{componentData.Name}} = null;
                      {{onRemovedEvents}}
-
                      {{componentData.FullName}}.DestroyComponent(previousComponent);
                      return this;
                  }

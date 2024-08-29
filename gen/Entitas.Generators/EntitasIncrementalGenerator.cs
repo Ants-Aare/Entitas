@@ -39,31 +39,33 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         var components = componentDatas.Collect();
         var contexts = contextDatas.Collect();
 
-        var componentsWithContexts = componentDatas
+        var extendedComponentDatas = componentDatas
             .Combine(contexts)
             .Select(CombineComponentsWithContexts);
-        var contextsWithComponents = contextDatas
+        var extendedContextDatas = contextDatas
             .Combine(components)
             .Combine(systems)
             .Select(CombineContextsWithComponents);
-        var systemsWithComponents = systemDatas
+        var extendedSystemDatas = systemDatas
             .Combine(components)
             .Select(CombineSystemsWithComponents);
 
-        var componentContextPairWithSystems = componentsWithContexts.SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData))).Combine(systems)
+        var extendedComponentDatasWithSystems = extendedComponentDatas.SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData))).Combine(systems)
             .Select(CombineWithSystems);
 
         initContext.RegisterSourceOutput(componentDatas, GenerateComponent.GenerateComponentOutput);
-        initContext.RegisterSourceOutput(componentContextPairWithSystems, GenerateEntityExtensions.GenerateEntityExtensionsOutput);
-        initContext.RegisterSourceOutput(componentContextPairWithSystems, GenerateContextExtensions.GenerateContextExtensionsOutput);
-        initContext.RegisterSourceOutput(systemsWithComponents, GenerateSystem.GenerateSystemOutput);
+        initContext.RegisterSourceOutput(extendedComponentDatas, GenerateInterfaceExtensions.GenerateInterfaceExtensionsOutput);
 
-        initContext.RegisterSourceOutput(contextsWithComponents, GenerateContext.GenerateContextOutput);
-        initContext.RegisterSourceOutput(contextsWithComponents, GenerateEntity.GenerateEntityOutput);
-        initContext.RegisterSourceOutput(componentsWithContexts, GenerateInterfaceExtensions.GenerateInterfaceExtensionsOutput);
+        initContext.RegisterSourceOutput(extendedComponentDatasWithSystems, GenerateEntityExtensions.GenerateEntityExtensionsOutput);
+        initContext.RegisterSourceOutput(extendedComponentDatasWithSystems, GenerateContextExtensions.GenerateContextExtensionsOutput);
+
+        initContext.RegisterSourceOutput(extendedSystemDatas, GenerateSystem.GenerateSystemOutput);
+
+        initContext.RegisterSourceOutput(extendedContextDatas, GenerateEntity.GenerateEntityOutput);
+        initContext.RegisterSourceOutput(extendedContextDatas, GenerateContext.GenerateContextOutput);
     }
 
-    ComponentContextWithSystems CombineWithSystems(((ComponentData ComponentData, ContextData ContextData) data, ImmutableArray<SystemData> systemDatas) values, CancellationToken arg2)
+    ExtendedComponentDataWithSystems CombineWithSystems(((ComponentData ComponentData, ContextData ContextData) data, ImmutableArray<SystemData> systemDatas) values, CancellationToken arg2)
     {
         var systems = new List<SystemData>();
         foreach (var systemData in values.systemDatas)
@@ -86,10 +88,10 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             }
         }
 
-        return new ComponentContextWithSystems(values.data.ComponentData, values.data.ContextData, systems.ToImmutableArray());
+        return new ExtendedComponentDataWithSystems(values.data.ComponentData, values.data.ContextData, systems.ToImmutableArray());
     }
 
-    static ComponentWithContexts CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
+    static ExtendedComponentData CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
     {
         var contexts = new List<ContextData>();
         foreach (var contextData in data.contextDatas)
@@ -106,10 +108,10 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             }
         }
 
-        return new ComponentWithContexts(data.componentData, contexts.ToImmutableArray());
+        return new ExtendedComponentData(data.componentData, contexts.ToImmutableArray());
     }
 
-    static SystemWithComponents CombineSystemsWithComponents((SystemData systemData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
+    static ExtendedSystemData CombineSystemsWithComponents((SystemData systemData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
     {
         var componentDatas = new List<ComponentData>();
         foreach (var componentData in data.componentDatas)
@@ -117,6 +119,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             if (data.systemData.TriggeredBy.Select(x => x.component).Contains(componentData.Name))
             {
                 componentDatas.Add(componentData);
+                continue;
             }
 
             if (data.systemData.EntityIs.Contains(componentData.Name))
@@ -125,10 +128,10 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             }
         }
 
-        return new SystemWithComponents(data.systemData, componentDatas.ToImmutableArray());
+        return new ExtendedSystemData(data.systemData, componentDatas.ToImmutableArray());
     }
 
-    static ContextWithComponents CombineContextsWithComponents(((ContextData contextData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<SystemData> systemDatas) data, CancellationToken ct)
+    static ExtendedContextData CombineContextsWithComponents(((ContextData contextData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<SystemData> systemDatas) data, CancellationToken ct)
     {
         var contexts = new List<ComponentData>();
         foreach (var componentData in data.Left.componentDatas)
@@ -136,6 +139,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             if (data.Left.contextData.Components.Contains(componentData.Name))
             {
                 contexts.Add(componentData);
+                continue;
             }
 
             if (componentData.ComponentAddedContexts.Contains(data.Left.contextData.Name))
@@ -150,6 +154,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             if (data.Left.contextData.Systems.Contains(systemData.Name))
             {
                 systems.Add(systemData);
+                continue;
             }
 
             if (systemData.ComponentAddedContexts.Contains(data.Left.contextData.Name))
@@ -158,6 +163,6 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             }
         }
 
-        return new ContextWithComponents(data.Left.contextData, contexts.ToImmutableArray(), systems.ToImmutableArray());
+        return new ExtendedContextData(data.Left.contextData, contexts.ToImmutableArray(), systems.ToImmutableArray());
     }
 }

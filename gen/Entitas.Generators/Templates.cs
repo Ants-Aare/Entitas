@@ -76,17 +76,5 @@ namespace Entitas.Generators
         {
             return contextPrefix.Replace(".", string.Empty);
         }
-
-        public static string ComponentMethodParams(ComponentDeclaration component) =>
-            string.Join(", ", component.Members.Select(static member => $"{member.Type} {member.ValidLowerFirstName}"));
-
-        public static string ComponentMethodArgs(ComponentDeclaration component) =>
-            string.Join(", ", component.Members.Select(static member => $"{member.ValidLowerFirstName}"));
-
-        public static string ComponentValueMethodArgs(ComponentDeclaration component) =>
-            string.Join(", ", component.Members.Select(static member => $"component.{member.Name}"));
-
-        public static string ComponentValueAssignments(ComponentDeclaration component) =>
-            string.Join("\n", component.Members.Select(static member => $"        component.{member.Name} = {member.ValidLowerFirstName};"));
     }
 }

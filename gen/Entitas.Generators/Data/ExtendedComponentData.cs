@@ -3,25 +3,25 @@ using System.Collections.Immutable;
 
 namespace Entitas.Generators.Data;
 
-public readonly struct ComponentWithContexts : IEquatable<ComponentWithContexts>
+public readonly struct ExtendedComponentData : IEquatable<ExtendedComponentData>
 {
     public readonly ComponentData ComponentData;
     public readonly ImmutableArray<ContextData> ContextDatas;
 
-    public ComponentWithContexts(ComponentData componentData, ImmutableArray<ContextData> contextDatas)
+    public ExtendedComponentData(ComponentData componentData, ImmutableArray<ContextData> contextDatas)
     {
         ComponentData = componentData;
         ContextDatas = contextDatas;
     }
 
-    public bool Equals(ComponentWithContexts other)
+    public bool Equals(ExtendedComponentData other)
     {
         return ComponentData.Equals(other.ComponentData) && ContextDatas.Equals(other.ContextDatas);
     }
 
     public override bool Equals(object? obj)
     {
-        return obj is ComponentWithContexts other && Equals(other);
+        return obj is ExtendedComponentData other && Equals(other);
     }
 
     public override int GetHashCode()

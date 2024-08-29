@@ -10,7 +10,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct SystemData : IClassDeclarationResolver, IAttributeResolver
+public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<SystemData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
@@ -128,6 +128,11 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver
         var typedConstants = attributeData.ConstructorArguments[0].Values;
         ComponentAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
         return true;
+    }
+
+    public SystemData Finalise()
+    {
+        return this;
     }
 
     public override string ToString()
