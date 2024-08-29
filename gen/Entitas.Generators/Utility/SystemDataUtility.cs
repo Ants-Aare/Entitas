@@ -16,6 +16,9 @@ public static class SystemDataUtility
             return string.Empty;
         if (systemData.EntityIsContext())
             return $"{systemData.EntityIs[0].RemoveSuffix("Context")}Entity";
+        if (systemData.EntityIsFeature())
+            return $"I{systemData.EntityIs[0]}Entity";
+
         if (systemData.HasMultipleConstraints())
             return $"I{systemData.Name}Entity";
         var componentData = systemData.TriggeredBy.Length > 0
@@ -31,6 +34,9 @@ public static class SystemDataUtility
             return string.Empty;
         if (systemData.EntityIsContext())
             return systemData.EntityIs[0];
+        if (systemData.EntityIsFeature())
+            return $"I{systemData.EntityIs[0]}Context";
+
         if (systemData.HasMultipleConstraints())
             return $"I{systemData.Name}Context";
         var componentData = systemData.TriggeredBy.Length > 0
@@ -40,9 +46,9 @@ public static class SystemDataUtility
     }
 
     public static bool EntityIsContext(this SystemData systemData)
-    {
-        return systemData.EntityIs.Length > 0 && !systemData.EntityIs[0].StartsWith("I") && systemData.EntityIs[0].EndsWith("Context", StringComparison.Ordinal);
-    }
+        => systemData.EntityIs.Length > 0 && !systemData.EntityIs[0].StartsWith("I") && systemData.EntityIs[0].EndsWith("Context", StringComparison.Ordinal);
+    public static bool EntityIsFeature(this SystemData systemData)
+        => systemData.EntityIs.Length > 0 && !systemData.EntityIs[0].StartsWith("I") && systemData.EntityIs[0].EndsWith("Feature", StringComparison.Ordinal);
 
     public static bool NeedsCustomInterface(this SystemData systemData) => systemData.HasMultipleConstraints() && !systemData.EntityIsContext();
 }

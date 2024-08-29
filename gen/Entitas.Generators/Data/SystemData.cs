@@ -30,7 +30,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
     public Execution ExecuteExecution { get; private set; }
     public int ExecuteOrder { get; private set; }
 
-    public ImmutableArray<string> ComponentAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
+    public ImmutableArray<string> ManuallyAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
 
     public SystemData()
     {
@@ -126,7 +126,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ComponentAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
+        ManuallyAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
         return true;
     }
 
@@ -164,10 +164,10 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
                     stringBuilder.AppendLine($"      {components}");
                 }
             }
-            if (ComponentAddedContexts.Length > 0)
+            if (ManuallyAddedContexts.Length > 0)
             {
-                stringBuilder.AppendLine($"   {nameof(ComponentAddedContexts)}:");
-                foreach (var contexts in ComponentAddedContexts)
+                stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
+                foreach (var contexts in ManuallyAddedContexts)
                 {
                     stringBuilder.AppendLine($"      {contexts}");
                 }

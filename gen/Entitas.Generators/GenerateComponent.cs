@@ -11,7 +11,7 @@ public sealed class GenerateComponent
 {
     public static void GenerateComponentOutput(SourceProductionContext context, ComponentData componentData)
     {
-            context.CancellationToken.ThrowIfCancellationRequested();
+        context.CancellationToken.ThrowIfCancellationRequested();
         var stringBuilder = new StringBuilder();
         try
         {
@@ -23,10 +23,10 @@ public sealed class GenerateComponent
                 stringBuilder.AppendLine(GetContent(componentData));
             }
 
-            using (new CommentBuilder(stringBuilder))
-            {
-                stringBuilder.AppendLine(componentData.ToString());
-            }
+            // using (new CommentBuilder(stringBuilder))
+            // {
+            //     stringBuilder.AppendLine(componentData.ToString());
+            // }
         }
         catch (Exception e)
         {

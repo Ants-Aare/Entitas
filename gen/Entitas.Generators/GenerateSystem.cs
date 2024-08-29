@@ -41,10 +41,10 @@ public sealed class GenerateSystem
                 }
             }
 
-            using (new CommentBuilder(stringBuilder))
-            {
-                stringBuilder.AppendLine(systemData.ToString());
-            }
+            // using (new CommentBuilder(stringBuilder))
+            // {
+            //     stringBuilder.AppendLine(systemData.ToString());
+            // }
         }
         catch (Exception e)
         {

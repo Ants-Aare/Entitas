@@ -20,7 +20,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
     public ImmutableArray<ComponentEventData> Events { get; private set; } = ImmutableArray<ComponentEventData>.Empty;
-    public ImmutableArray<string> ComponentAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
+    public ImmutableArray<string> ManuallyAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
 
     public bool IsUnique { get; private set; }
     public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
@@ -97,7 +97,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ComponentAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
+        ManuallyAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
         return true;
     }
 
@@ -199,10 +199,10 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
                 }
             }
 
-            if (ComponentAddedContexts.Length > 0)
+            if (ManuallyAddedContexts.Length > 0)
             {
-                stringBuilder.AppendLine($"   {nameof(ComponentAddedContexts)}:");
-                foreach (var contexts in ComponentAddedContexts)
+                stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
+                foreach (var contexts in ManuallyAddedContexts)
                 {
                     stringBuilder.AppendLine($"      {contexts}");
                 }
@@ -221,7 +221,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public bool Equals(ComponentData other)
     {
-        return FullName == other.FullName && Fields.Equals(other.Fields) && Events.Equals(other.Events) && ComponentAddedContexts.Equals(other.ComponentAddedContexts) && IsUnique == other.IsUnique && CleanupMode == other.CleanupMode;
+        return FullName == other.FullName && Fields.Equals(other.Fields) && Events.Equals(other.Events) && ManuallyAddedContexts.Equals(other.ManuallyAddedContexts) && IsUnique == other.IsUnique && CleanupMode == other.CleanupMode;
     }
 
     public override bool Equals(object? obj)
@@ -236,7 +236,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
             var hashCode = FullName.GetHashCode();
             hashCode = (hashCode * 397) ^ Fields.GetHashCode();
             hashCode = (hashCode * 397) ^ Events.GetHashCode();
-            hashCode = (hashCode * 397) ^ ComponentAddedContexts.GetHashCode();
+            hashCode = (hashCode * 397) ^ ManuallyAddedContexts.GetHashCode();
             hashCode = (hashCode * 397) ^ IsUnique.GetHashCode();
             hashCode = (hashCode * 397) ^ CleanupMode.GetHashCode();
             return hashCode;

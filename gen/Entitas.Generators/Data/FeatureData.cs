@@ -11,24 +11,21 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>
+public struct FeatureData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<FeatureData>, IEquatable<FeatureData>
 {
     public string? Namespace { get; private set; }
     public string FullName { get; private set; }
     public string Name { get; private set; }
-
     public string FullPrefix { get; private set; }
     public string Prefix { get; private set; }
-
+    public ImmutableArray<string> ManuallyAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
     public ImmutableArray<string> Components = ImmutableArray<string>.Empty;
     public ImmutableArray<string> Systems = ImmutableArray<string>.Empty;
-    public ImmutableArray<string> Features = ImmutableArray<string>.Empty;
 
     readonly HashSet<string> _components = new();
     readonly HashSet<string> _systems = new();
-    readonly HashSet<string> _features = new();
 
-    public ContextData()
+    public FeatureData()
     {
         Namespace = null;
         FullName = null!;
@@ -43,11 +40,11 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
                .SelectMany(x => x.Attributes)
                .Any(x => x is
                {
-                   Name: IdentifierNameSyntax { Identifier.Text: ContextName or ContextAttributeName }
+                   Name: IdentifierNameSyntax { Identifier.Text: FeatureName or FeatureAttributeName }
                    or QualifiedNameSyntax
                    {
                        Left: IdentifierNameSyntax { Identifier.Text: EntitasNamespaceName },
-                       Right: IdentifierNameSyntax { Identifier.Text: ContextName or ContextAttributeName },
+                       Right: IdentifierNameSyntax { Identifier.Text: FeatureName or FeatureAttributeName },
                    }
                });
 
@@ -60,8 +57,8 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         FullName = symbol.ToDisplayString();
         Name = symbol.Name;
 
-        FullPrefix = FullName.RemoveSuffix("Context");
-        Prefix = Name.RemoveSuffix("Context");
+        FullPrefix = FullName.RemoveSuffix("Feature");
+        Prefix = Name.RemoveSuffix("Feature");
         return true;
     }
 
@@ -71,7 +68,7 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         {
             { AttributeClass.Name: WithComponentsAttributeName } => TryResolveComponentsAttribute(attributeData),
             { AttributeClass.Name: WithSystemsAttributeName } => TryResolveSystemsAttribute(attributeData),
-            { AttributeClass.Name: WithFeaturesAttributeName } => TryResolveFeaturesAttribute(attributeData),
+            { AttributeClass.Name: AddToContextAttributeName } => TryResolveAddToContextAttribute(attributeData),
             _ => true
         };
     }
@@ -90,24 +87,38 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         return true;
     }
 
-    bool TryResolveFeaturesAttribute(AttributeData attributeData)
+    bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
-        var values = attributeData.ConstructorArguments[0].Values;
-        _features.UnionWith(values.Where(x=> x.Value is string).Select(x=> (string) x.Value!));
+        var typedConstants = attributeData.ConstructorArguments[0].Values;
+        ManuallyAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
         return true;
     }
 
-    public ContextData Finalise()
+    public FeatureData Finalise()
     {
         Components = _components.ToImmutableArray();
         Systems = _systems.ToImmutableArray();
-        Features = _features.ToImmutableArray();
         return this;
+    }
+
+    public static string ToEntityInterfaceString(string fullName)
+    {
+        if (!fullName.Contains('.'))
+            return $"I{fullName}Context";
+        var lastDotIndex = fullName.LastIndexOf('.') + 1;
+        return $"{fullName.Substring(0, lastDotIndex)}I{fullName.Substring(lastDotIndex)}Entity";
+    }
+    public static string ToContextInterfaceString(string fullName)
+    {
+        if (!fullName.Contains('.'))
+            return $"I{fullName}Context";
+        var lastDotIndex = fullName.LastIndexOf('.') + 1;
+        return $"{fullName.Substring(0, lastDotIndex)}I{fullName.Substring(lastDotIndex)}Context";
     }
 
     public override string ToString()
     {
-        var stringBuilder = new StringBuilder("ContextData:\n");
+        var stringBuilder = new StringBuilder("FeatureData:\n");
         try
         {
             stringBuilder
@@ -117,38 +128,36 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
                 .AppendLine($"   {nameof(FullPrefix)}: {FullPrefix}")
                 .AppendLine($"   {nameof(Prefix)}: {Prefix}");
 
+            stringBuilder.AppendLine($"   {nameof(Components)}:");
             if (Components.Length != 0)
             {
-                stringBuilder.AppendLine($"   {nameof(Components)}:");
                 foreach (var component in Components)
                 {
                     stringBuilder.AppendLine($"      {component}");
                 }
             }
             else
-                stringBuilder.AppendLine("This Context has no Components declared on it.");
+                stringBuilder.AppendLine("This Feature has no Components declared on it.");
 
+            stringBuilder.AppendLine($"   {nameof(Systems)}:");
             if (Systems.Length != 0)
             {
-                stringBuilder.AppendLine($"   {nameof(Systems)}:");
                 foreach (var system in Systems)
                 {
                     stringBuilder.AppendLine($"      {system}");
                 }
             }
             else
-                stringBuilder.AppendLine("This Context has no Systems declared on it.");
+                stringBuilder.AppendLine("This Feature has no Systems declared on it.");
 
-            if (Features.Length != 0)
+            if (ManuallyAddedContexts.Length > 0)
             {
-                stringBuilder.AppendLine($"   {nameof(Features)}:");
-                foreach (var feature in Features)
+                stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
+                foreach (var contexts in ManuallyAddedContexts)
                 {
-                    stringBuilder.AppendLine($"      {feature}");
+                    stringBuilder.AppendLine($"      {contexts}");
                 }
             }
-            else
-                stringBuilder.AppendLine("This Context has no Features declared on it.");
         }
         catch (Exception e)
         {
@@ -158,14 +167,14 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         return stringBuilder.ToString();
     }
 
-    public bool Equals(ContextData other)
+    public bool Equals(FeatureData other)
     {
-        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && Features.Equals(other.Features) && FullName == other.FullName;
+        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && FullName == other.FullName && ManuallyAddedContexts.Equals(other.ManuallyAddedContexts);
     }
 
     public override bool Equals(object? obj)
     {
-        return obj is ContextData other && Equals(other);
+        return obj is FeatureData other && Equals(other);
     }
 
     public override int GetHashCode()
@@ -174,8 +183,8 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         {
             var hashCode = Components.GetHashCode();
             hashCode = (hashCode * 397) ^ Systems.GetHashCode();
-            hashCode = (hashCode * 397) ^ Features.GetHashCode();
             hashCode = (hashCode * 397) ^ FullName.GetHashCode();
+            hashCode = (hashCode * 397) ^ ManuallyAddedContexts.GetHashCode();
             return hashCode;
         }
     }

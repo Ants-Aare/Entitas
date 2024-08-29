@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -21,6 +20,10 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
         // initContext.RegisterSourceOutput(groupDatas, GenerateGroupOutput);
 
+        var featureDatas = initContext.SyntaxProvider
+            .CreateSyntaxProvider(FeatureData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<FeatureData>)
+            .RemoveEmptyValues();
+
         var systemDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(SystemData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<SystemData>)
             .RemoveEmptyValues();
@@ -31,13 +34,17 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .CreateSyntaxProvider(ContextData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ContextData>)
             .RemoveEmptyValues();
 
-        var systems = systemDatas.Collect().Sort((x,y)=>
+        //Add components and systems from features
+        contextDatas = contextDatas.Combine(featureDatas.Collect()).Select(AddFeature);
+
+        var systems = systemDatas.Collect().Sort((x, y) =>
         {
             var reactiveOrder = x.ReactiveOrder.CompareTo(y.ReactiveOrder);
             return reactiveOrder == 0 ? string.Compare(x.Name, y.Name, StringComparison.Ordinal) : reactiveOrder;
         });
         var components = componentDatas.Collect();
         var contexts = contextDatas.Collect();
+
 
         var extendedComponentDatas = componentDatas
             .Combine(contexts)
@@ -49,8 +56,12 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         var extendedSystemDatas = systemDatas
             .Combine(components)
             .Select(CombineSystemsWithComponents);
+        var extendedFeatureDatas = featureDatas
+            .Combine(components)
+            .Select((x, _) => (x.Left, x.Right.Where(y => x.Left.Components.Contains(y.Name)).ToImmutableArray()));
 
-        var extendedComponentDatasWithSystems = extendedComponentDatas.SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData))).Combine(systems)
+        var extendedComponentDatasWithSystems = extendedComponentDatas
+            .SelectMany((x, _) => x.ContextDatas.Select(contextData => (x.ComponentData, ContextData: contextData))).Combine(systems)
             .Select(CombineWithSystems);
 
         initContext.RegisterSourceOutput(componentDatas, GenerateComponent.GenerateComponentOutput);
@@ -63,106 +74,71 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
         initContext.RegisterSourceOutput(extendedContextDatas, GenerateEntity.GenerateEntityOutput);
         initContext.RegisterSourceOutput(extendedContextDatas, GenerateContext.GenerateContextOutput);
+
+        initContext.RegisterSourceOutput(extendedFeatureDatas, GenerateFeature.GenerateFeatureOutput);
     }
 
-    ExtendedComponentDataWithSystems CombineWithSystems(((ComponentData ComponentData, ContextData ContextData) data, ImmutableArray<SystemData> systemDatas) values, CancellationToken arg2)
+    static ContextData AddFeature((ContextData contextData, ImmutableArray<FeatureData> features) data, CancellationToken ct)
     {
-        var systems = new List<SystemData>();
-        foreach (var systemData in values.systemDatas)
+        var features = data.features
+            .Where(featureData => data.contextData.Features.Contains(featureData.Name)
+                                  || featureData.ManuallyAddedContexts.Contains(data.contextData.Name))
+            .ToList();
+
+        foreach (var feature in features)
         {
-            if(!systemData.IsReactiveSystem)
-                continue;
-
-            if (systemData.TriggeredBy.Any(x => x.component == values.data.ComponentData.Name))
-            {
-                if(values.data.ContextData.Systems.Contains(systemData.Name))
-                {
-                    systems.Add(systemData);
-                    continue;
-                }
-
-                if(systemData.ComponentAddedContexts.Contains(values.data.ContextData.Name))
-                {
-                    systems.Add(systemData);
-                }
-            }
+            data.contextData.Components = data.contextData.Components.AddRange(feature.Components);
+            data.contextData.Systems = data.contextData.Systems.AddRange(feature.Systems);
         }
+        data.contextData.Features = features.Select(x=> x.FullName).ToImmutableArray();
 
-        return new ExtendedComponentDataWithSystems(values.data.ComponentData, values.data.ContextData, systems.ToImmutableArray());
+        return data.contextData;
+    }
+
+    static ExtendedComponentDataWithSystems CombineWithSystems(((ComponentData ComponentData, ContextData ContextData) data, ImmutableArray<SystemData> systemDatas) values, CancellationToken arg2)
+    {
+        var systems = values.systemDatas
+            .Where(systemData => systemData.IsReactiveSystem
+                                 && systemData.TriggeredBy.Any(x => x.component == values.data.ComponentData.Name))
+            .Where(systemData => values.data.ContextData.Systems.Contains(systemData.Name)
+                                 || systemData.ManuallyAddedContexts.Contains(values.data.ContextData.Name))
+            .ToImmutableArray();
+
+        return new ExtendedComponentDataWithSystems(values.data.ComponentData, values.data.ContextData, systems);
     }
 
     static ExtendedComponentData CombineComponentsWithContexts((ComponentData componentData, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
     {
-        var contexts = new List<ContextData>();
-        foreach (var contextData in data.contextDatas)
-        {
-            if (data.componentData.ComponentAddedContexts.Contains(contextData.Name))
-            {
-                contexts.Add(contextData);
-                continue;
-            }
+        var contexts = data.contextDatas
+            .Where(contextData => data.componentData.ManuallyAddedContexts.Contains(contextData.Name)
+                                  || contextData.Components.Contains(data.componentData.Name))
+            .ToImmutableArray();
 
-            if (contextData.Components.Contains(data.componentData.Name))
-            {
-                contexts.Add(contextData);
-            }
-        }
-
-        return new ExtendedComponentData(data.componentData, contexts.ToImmutableArray());
+        return new ExtendedComponentData(data.componentData, contexts);
     }
 
     static ExtendedSystemData CombineSystemsWithComponents((SystemData systemData, ImmutableArray<ComponentData> componentDatas) data, CancellationToken ct)
     {
-        var componentDatas = new List<ComponentData>();
-        foreach (var componentData in data.componentDatas)
-        {
-            if (data.systemData.TriggeredBy.Select(x => x.component).Contains(componentData.Name))
-            {
-                componentDatas.Add(componentData);
-                continue;
-            }
+        var componentDatas = data.componentDatas
+            .Where(componentData => data.systemData.TriggeredBy.Select(x => x.component).Contains(componentData.Name)
+                                    || data.systemData.EntityIs.Contains(componentData.Name))
+            .ToImmutableArray();
 
-            if (data.systemData.EntityIs.Contains(componentData.Name))
-            {
-                componentDatas.Add(componentData);
-            }
-        }
-
-        return new ExtendedSystemData(data.systemData, componentDatas.ToImmutableArray());
+        return new ExtendedSystemData(data.systemData, componentDatas);
     }
 
     static ExtendedContextData CombineContextsWithComponents(((ContextData contextData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<SystemData> systemDatas) data, CancellationToken ct)
     {
-        var contexts = new List<ComponentData>();
-        foreach (var componentData in data.Left.componentDatas)
-        {
-            if (data.Left.contextData.Components.Contains(componentData.Name))
-            {
-                contexts.Add(componentData);
-                continue;
-            }
+        var contexts = data.Left.componentDatas
+            .Where(componentData => data.Left.contextData.Components.Contains(componentData.Name)
+                                    || componentData.ManuallyAddedContexts.Contains(data.Left.contextData.Name))
+            .ToImmutableArray();
 
-            if (componentData.ComponentAddedContexts.Contains(data.Left.contextData.Name))
-            {
-                contexts.Add(componentData);
-            }
-        }
+        var systems = data.systemDatas
+            .Where(systemData => data.Left.contextData.Systems.Contains(systemData.Name)
+                                 || systemData.ManuallyAddedContexts.Contains(data.Left.contextData.Name))
+            .ToImmutableArray();
 
-        var systems = new List<SystemData>();
-        foreach (var systemData in data.systemDatas)
-        {
-            if (data.Left.contextData.Systems.Contains(systemData.Name))
-            {
-                systems.Add(systemData);
-                continue;
-            }
-
-            if (systemData.ComponentAddedContexts.Contains(data.Left.contextData.Name))
-            {
-                systems.Add(systemData);
-            }
-        }
-
-        return new ExtendedContextData(data.Left.contextData, contexts.ToImmutableArray(), systems.ToImmutableArray());
+        return new ExtendedContextData(data.Left.contextData, contexts, systems);
     }
 }

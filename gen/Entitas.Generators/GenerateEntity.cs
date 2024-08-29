@@ -44,9 +44,10 @@ public sealed class GenerateEntity
 
         var systemDatas = data.SystemDatas.Where(x=> x.IsReactiveSystem && x.NeedsCustomInterface()).ToList();
         var systemInterfaces = systemDatas.Count == 0 ? string.Empty : ',' + string.Join(", ", systemDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Entity"));
+        var featureInterfaces = contextData.Features.Length == 0 ? string.Empty : ',' + string.Join(", ", contextData.Features.Select(static x =>FeatureData.ToEntityInterfaceString(x)));
 
         return $$"""
-                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}
+                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}{{featureInterfaces}}
                  {
                      public {{contextData.Name}} Context { get; private set; }
                      internal {{contextData.Prefix}}Entity(){}

@@ -23,6 +23,9 @@ public static class StringConstants
     public const string ExecuteSystemName = "ExecuteSystem";
     public const string ExecuteSystemAttributeName = "ExecuteSystemAttribute";
 
+    public const string FeatureName = "Feature";
+    public const string FeatureAttributeName = "FeatureAttribute";
+
 
 
     //Component Attributes
@@ -43,6 +46,8 @@ public static class StringConstants
     public const string WithComponentsAttributeName = "WithComponentsAttribute";
 
     public const string WithSystemsAttributeName = "WithSystemsAttribute";
+
+    public const string WithFeaturesAttributeName = "WithFeaturesAttribute";
 
     public const string EntityIsAttributeName = "EntityIsAttribute";
 
