@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
+using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
@@ -9,21 +10,19 @@ namespace Entitas.Generators;
 
 public sealed class GenerateSystem
 {
-    public static void GenerateSystemOutput(SourceProductionContext context, ExtendedSystemData data)
+    public static void GenerateSystemOutput(SourceProductionContext context, SystemData systemData)
     {
-        var systemData = data.SystemData;
-        var componentDatas = data.ComponentDatas;
         var stringBuilder = new StringBuilder();
         try
         {
             context.CancellationToken.ThrowIfCancellationRequested();
-            var entityType = data.GetEntityType();
-            var contextType = data.GetContextType();
+            var entityType = systemData.GetEntityType();
+            var contextType = systemData.GetContextType();
 
             stringBuilder.AppendGenerationWarning(nameof(GenerateSystem));
             using (new NamespaceBuilder(stringBuilder, systemData.Namespace))
             {
-                stringBuilder.AppendLine(GetClassContent(data));
+                stringBuilder.AppendLine(GetClassContent(systemData));
 
                 if (systemData.IsReactiveSystem)
                     stringBuilder.AppendLine(GetReactiveContent(entityType));
@@ -35,16 +34,21 @@ public sealed class GenerateSystem
                 stringBuilder.Append('}');
                 if (systemData.HasMultipleConstraints())
                 {
-                    var entities = string.Join(", ", componentDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Prefix}Entity"));
-                    var contexts = string.Join(", ", componentDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Prefix}Context"));
+                    var components = systemData.TriggeredBy
+                        .Select(x=> x.component)
+                        .Concat(systemData.EntityIs)
+                        .Where(x=> x.Prefix != null)
+                        .ToList();
+                    var entities = string.Join(", ", components.Select(x => $"{x.NamespaceSpecifier}I{x.Prefix}Entity"));
+                    var contexts = string.Join(", ", components.Select(x => $"{x.NamespaceSpecifier}I{x.Prefix}Context"));
                     stringBuilder.AppendLine($"public interface I{systemData.Name}Entity : {entities}{{ }} \n public interface I{systemData.Name}Context : {contexts}{{ }}");
                 }
             }
 
-            // using (new CommentBuilder(stringBuilder))
-            // {
-            //     stringBuilder.AppendLine(systemData.ToString());
-            // }
+            using (new CommentBuilder(stringBuilder))
+            {
+                stringBuilder.AppendLine(systemData.ToString());
+            }
         }
         catch (Exception e)
         {
@@ -54,11 +58,10 @@ public sealed class GenerateSystem
         context.AddSource(Templates.FileNameHint(systemData.Namespace, systemData.Name), stringBuilder.ToString());
     }
 
-    static string GetClassContent(ExtendedSystemData data)
+    static string GetClassContent(SystemData systemData)
     {
-        var systemData = data.SystemData;
-        var entityType = data.GetEntityType();
-        var contextType = data.GetContextType();
+        var entityType = systemData.GetEntityType();
+        var contextType = systemData.GetContextType();
 
         var interfaces = new StringBuilder();
         if (systemData.IsReactiveSystem)

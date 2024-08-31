@@ -11,28 +11,20 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct FeatureData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<FeatureData>, IEquatable<FeatureData>
+public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<FeatureData>, IEquatable<FeatureData>
 {
-    public string? Namespace { get; private set; }
-    public string FullName { get; private set; }
-    public string Name { get; private set; }
-    public string FullPrefix { get; private set; }
-    public string Prefix { get; private set; }
-    public ImmutableArray<string> ManuallyAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
-    public ImmutableArray<string> Components = ImmutableArray<string>.Empty;
-    public ImmutableArray<string> Systems = ImmutableArray<string>.Empty;
+    public TypeData TypeData { get; private set; } = default;
+    public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Components = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Systems = ImmutableArray<TypeData>.Empty;
 
-    readonly HashSet<string> _components = new();
-    readonly HashSet<string> _systems = new();
-
-    public FeatureData()
-    {
-        Namespace = null;
-        FullName = null!;
-        Name = null!;
-        FullPrefix = null!;
-        Prefix = null!;
-    }
+    readonly HashSet<TypeData> _components = new();
+    readonly HashSet<TypeData> _systems = new();
+    public string? Namespace => TypeData.Namespace;
+    public string FullName => TypeData.FullName;
+    public string Name => TypeData.Name;
+    public string FullPrefix => TypeData.FullPrefix!;
+    public string Prefix => TypeData.Prefix!;
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
@@ -50,15 +42,7 @@ public struct FeatureData : IClassDeclarationResolver, IAttributeResolver, IFina
 
     public bool TryResolveClassDeclaration(INamedTypeSymbol symbol)
     {
-        Namespace = symbol.ContainingNamespace.IsGlobalNamespace
-            ? null
-            : symbol.ContainingNamespace.ToDisplayString();
-
-        FullName = symbol.ToDisplayString();
-        Name = symbol.Name;
-
-        FullPrefix = FullName.RemoveSuffix("Feature");
-        Prefix = Name.RemoveSuffix("Feature");
+        TypeData = TypeData.Create(symbol, FeatureName);
         return true;
     }
 
@@ -76,21 +60,21 @@ public struct FeatureData : IClassDeclarationResolver, IAttributeResolver, IFina
     bool TryResolveComponentsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _components.UnionWith(values.Where(x=> x.Value is string).Select(x=> (string) x.Value!));
+        _components.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName)));
         return true;
     }
 
     bool TryResolveSystemsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _systems.UnionWith(values.Where(x=> x.Value is string).Select(x=> (string) x.Value!));
+        _systems.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!)));
         return true;
     }
 
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ManuallyAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
+        ManuallyAddedContexts = typedConstants.Where(x=> x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 
@@ -101,13 +85,6 @@ public struct FeatureData : IClassDeclarationResolver, IAttributeResolver, IFina
         return this;
     }
 
-    public static string ToEntityInterfaceString(string fullName)
-    {
-        if (!fullName.Contains('.'))
-            return $"I{fullName}Context";
-        var lastDotIndex = fullName.LastIndexOf('.') + 1;
-        return $"{fullName.Substring(0, lastDotIndex)}I{fullName.Substring(lastDotIndex)}Entity";
-    }
     public static string ToContextInterfaceString(string fullName)
     {
         if (!fullName.Contains('.'))

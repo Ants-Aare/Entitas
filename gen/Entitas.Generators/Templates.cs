@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace Entitas.Generators
@@ -65,6 +64,12 @@ namespace Entitas.Generators
             return str.EndsWith(suffix, StringComparison.Ordinal)
                 ? str.Substring(0, str.Length - suffix.Length)
                 : str;
+        }
+        public static string? TryRemoveSuffix(this string str, string suffix)
+        {
+            return str.EndsWith(suffix, StringComparison.Ordinal)
+                ? str.Substring(0, str.Length - suffix.Length)
+                : null;
         }
 
         public static string ContextPrefix(string context)

@@ -68,7 +68,7 @@ public sealed class GenerateContextExtensions
         foreach (var systemData in data.SystemDatas)
         {
             var systemCall = $"{systemData.ValidLowerName}.OnEntityTriggered(contextEntity);";
-            var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.Name);
+            var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.TypeData);
             switch (eventType)
             {
                 case EventType.Added:

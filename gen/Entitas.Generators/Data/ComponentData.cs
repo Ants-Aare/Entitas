@@ -10,34 +10,24 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>, IEquatable<ComponentData>
+public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>, IEquatable<ComponentData>
 {
-    public string? Namespace { get; private set; }
-    public string FullName { get; private set; }
-    public string Name { get; private set; }
-    public string FullPrefix { get; private set; }
-    public string Prefix { get; private set; }
-
+    public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
     public ImmutableArray<ComponentEventData> Events { get; private set; } = ImmutableArray<ComponentEventData>.Empty;
-    public ImmutableArray<string> ManuallyAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
+    public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
 
-    public bool IsUnique { get; private set; }
+    public bool IsUnique { get; private set; } = false;
     public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
     public int IndexMaxSize { get; private set; } = 1000;
-    public string? GetIndexMethod { get; private set; }
-    public CleanupMode? CleanupMode { get; private set; }
+    public string? GetIndexMethod { get; private set; } = null;
+    public CleanupMode? CleanupMode { get; private set; } = null;
 
-    public ComponentData()
-    {
-        Namespace = null;
-        FullName = null!;
-        Name = null!;
-        FullPrefix = null!;
-        Prefix = null!;
-        IsUnique = false;
-        CleanupMode = null;
-    }
+    public string? Namespace => TypeData.Namespace;
+    public string FullName => TypeData.FullName;
+    public string Name => TypeData.Name;
+    public string FullPrefix => TypeData.FullPrefix!;
+    public string Prefix => TypeData.Prefix!;
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
@@ -55,15 +45,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public bool TryResolveClassDeclaration(INamedTypeSymbol symbol)
     {
-        Namespace = symbol.ContainingNamespace.IsGlobalNamespace
-            ? null
-            : symbol.ContainingNamespace.ToDisplayString();
-
-        FullName = symbol.ToDisplayString();
-        Name = symbol.Name;
-
-        FullPrefix = FullName.RemoveSuffix("Component");
-        Prefix = Name.RemoveSuffix("Component");
+        TypeData = TypeData.Create(symbol, ComponentName);
         return true;
     }
 
@@ -97,7 +79,7 @@ public struct ComponentData : IClassDeclarationResolver, IAttributeResolver, IFi
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ManuallyAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
+        ManuallyAddedContexts = typedConstants.Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 

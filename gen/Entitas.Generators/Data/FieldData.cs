@@ -1,7 +1,6 @@
 using System;
 using Entitas.Generators.Common;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Entitas.Generators.Data;
 

@@ -48,6 +48,8 @@ public sealed class GenerateContext
         var constructorSignature = systemDatas.Length == 0 ? string.Empty : string.Join(", ", systemDatas.Select(static system => $"{system.FullName} {system.Name}"));
         var constructorBody = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"context.{system.ValidLowerName} = {system.Name};\n\t\t{system.Name}.Context = context;\n\t\t{system.Name}.Enable();\n"));
         var destroySystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Disable();\n\t\t{system.ValidLowerName} = null;"));
+        var disableSystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Disable();"));
+        var enableSystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Enable();"));
 
         var uniqueComponents = data.ComponentDatas.Where(x=> x.IsUnique).ToList();
         var destroyUnique = uniqueComponents.Count == 0 ? string.Empty : string.Join("\n\t\t", uniqueComponents.Select(static x => $"{x.FullName}.DestroyComponent({x.Name});"));
@@ -56,7 +58,7 @@ public sealed class GenerateContext
         var systemInterfaces = systems.Count == 0 ? string.Empty : ',' + string.Join(", ", systems.Select(static x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Context"));
 
         // var systems = contextData.Features.Where(x=> x.NeedsCustomInterface()).ToList();
-        var featureInterfaces = contextData.Features.Length == 0 ? string.Empty : ',' + string.Join(", ", contextData.Features.Select(static x =>FeatureData.ToContextInterfaceString(x)));
+        var featureInterfaces = contextData.Features.Length == 0 ? string.Empty : ',' + string.Join(", ", contextData.Features.Select(static x =>$"{x.NamespaceSpecifier}I{x.Name}Context"));
 
         return $$"""
                  public sealed partial class {{contextData.Name}} : Entitas.ContextBase{{systemInterfaces}}{{featureInterfaces}}
@@ -120,6 +122,14 @@ public sealed class GenerateContext
                          EntityPool.Push(entity);
                      }
 
+                     public void EnableSystems()
+                     {
+                      {{enableSystems}}
+                     }
+                     public void DisableSystems()
+                     {
+                      {{disableSystems}}
+                     }
                      ~{{contextData.Name}}()
                      {
                          DestroyContext();

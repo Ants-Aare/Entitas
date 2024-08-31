@@ -11,31 +11,22 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>
+public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>
 {
-    public string? Namespace { get; private set; }
-    public string FullName { get; private set; }
-    public string Name { get; private set; }
+    public TypeData TypeData { get; private set; } = default;
+    public ImmutableArray<TypeData> Components = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Systems = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Features = ImmutableArray<TypeData>.Empty;
 
-    public string FullPrefix { get; private set; }
-    public string Prefix { get; private set; }
+    readonly HashSet<TypeData> _components = new();
+    readonly HashSet<TypeData> _systems = new();
+    readonly HashSet<TypeData> _features = new();
 
-    public ImmutableArray<string> Components = ImmutableArray<string>.Empty;
-    public ImmutableArray<string> Systems = ImmutableArray<string>.Empty;
-    public ImmutableArray<string> Features = ImmutableArray<string>.Empty;
-
-    readonly HashSet<string> _components = new();
-    readonly HashSet<string> _systems = new();
-    readonly HashSet<string> _features = new();
-
-    public ContextData()
-    {
-        Namespace = null;
-        FullName = null!;
-        Name = null!;
-        FullPrefix = null!;
-        Prefix = null!;
-    }
+    public string? Namespace => TypeData.Namespace;
+    public string FullName => TypeData.FullName;
+    public string Name => TypeData.Name;
+    public string FullPrefix => TypeData.FullPrefix!;
+    public string Prefix => TypeData.Prefix!;
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
@@ -53,15 +44,7 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
 
     public bool TryResolveClassDeclaration(INamedTypeSymbol symbol)
     {
-        Namespace = symbol.ContainingNamespace.IsGlobalNamespace
-            ? null
-            : symbol.ContainingNamespace.ToDisplayString();
-
-        FullName = symbol.ToDisplayString();
-        Name = symbol.Name;
-
-        FullPrefix = FullName.RemoveSuffix("Context");
-        Prefix = Name.RemoveSuffix("Context");
+        TypeData = TypeData.Create(symbol, ContextName);
         return true;
     }
 
@@ -79,21 +62,21 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
     bool TryResolveComponentsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _components.UnionWith(values.Where(x=> x.Value is string).Select(x=> (string) x.Value!));
+        _components.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName)));
         return true;
     }
 
     bool TryResolveSystemsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _systems.UnionWith(values.Where(x=> x.Value is string).Select(x=> (string) x.Value!));
+        _systems.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!)));
         return true;
     }
 
     bool TryResolveFeaturesAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _features.UnionWith(values.Where(x=> x.Value is string).Select(x=> (string) x.Value!));
+        _features.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!)));
         return true;
     }
 
@@ -102,6 +85,9 @@ public struct ContextData : IClassDeclarationResolver, IAttributeResolver, IFina
         Components = _components.ToImmutableArray();
         Systems = _systems.ToImmutableArray();
         Features = _features.ToImmutableArray();
+        _components.Clear();
+        _systems.Clear();
+        _features.Clear();
         return this;
     }
 

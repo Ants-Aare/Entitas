@@ -10,42 +10,29 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinalisable<SystemData>
+public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<SystemData>
 {
-    public string? Namespace { get; private set; }
-    public string FullName { get; private set; }
-    public string Name { get; private set; }
-    public string ValidLowerName { get; private set; }
+    public string? Namespace => TypeData.Namespace;
+    public string FullName => TypeData.FullName;
+    public string Name => TypeData.Name;
+    public string ValidLowerName { get; private set; } = null!;
 
-    public bool IsInitializeSystem { get; private set; }
+    public TypeData TypeData { get; private set; } = default;
+    public bool IsInitializeSystem { get; private set; } = false;
 
-    public bool IsReactiveSystem { get; private set; }
+    public bool IsReactiveSystem { get; private set; } = false;
+    public bool IsExecuteSystem { get; private set; } = false;
 
-    public Execution ReactiveExecution { get; private set; }
-    public int ReactiveOrder { get; private set; }
-    public ImmutableArray<(string component, EventType eventType)> TriggeredBy { get; private set; } = ImmutableArray<(string, EventType)>.Empty;
-    public ImmutableArray<string> EntityIs { get; private set; } = ImmutableArray<string>.Empty;
+    public Execution ReactiveExecution { get; private set; } = Execution.Manual;
+    public Execution ExecuteExecution { get; private set; } = Execution.Manual;
+    public int ReactiveOrder { get; private set; } = 0;
+    public int ExecuteOrder { get; private set; } = 0;
 
-    public bool IsExecuteSystem { get; private set; }
-    public Execution ExecuteExecution { get; private set; }
-    public int ExecuteOrder { get; private set; }
+    public ImmutableArray<(TypeData component, EventType eventType)> TriggeredBy { get; private set; } = ImmutableArray<(TypeData, EventType)>.Empty;
+    public ImmutableArray<TypeData> EntityIs { get; private set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
 
-    public ImmutableArray<string> ManuallyAddedContexts { get; private set; } = ImmutableArray<string>.Empty;
 
-    public SystemData()
-    {
-        Namespace = null!;
-        FullName = null!;
-        Name = null!;
-        ValidLowerName = null!;
-        IsInitializeSystem = false;
-        IsReactiveSystem = false;
-        ReactiveExecution = Execution.Manual;
-        ReactiveOrder = 0;
-        IsExecuteSystem = false;
-        ExecuteExecution = Execution.Manual;
-        ExecuteOrder = 0;
-    }
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
@@ -63,13 +50,9 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
 
     public bool TryResolveClassDeclaration(INamedTypeSymbol symbol)
     {
-        Namespace = symbol.ContainingNamespace.IsGlobalNamespace
-            ? null
-            : symbol.ContainingNamespace.ToDisplayString();
-
-        FullName = symbol.ToDisplayString();
-        Name = symbol.Name;
+        TypeData = TypeData.Create(symbol);
         ValidLowerName = Name.ToValidLowerName();
+
         return true;
     }
 
@@ -78,7 +61,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
         return attributeData switch
         {
             { AttributeClass.Name: ReactiveSystemAttributeName } => TryResolveReactiveSystemAttribute(attributeData),
-            { AttributeClass.Name: InitializeSystemAttributeName } => TryResolveInitializeSystemAttributeAttribute(attributeData),
+            { AttributeClass.Name: InitializeSystemAttributeName } => TryResolveInitializeSystemAttributeAttribute(),
             { AttributeClass.Name: ExecuteSystemAttributeName } => TryResolveExecuteSystemAttribute(attributeData),
             { AttributeClass.Name: EntityIsAttributeName } => TryResolveEntityIsAttribute(attributeData),
             { AttributeClass.Name: AddToContextAttributeName } => TryResolveAddToContextAttribute(attributeData),
@@ -89,9 +72,9 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
 
     bool TryResolveTriggeredByAttribute(AttributeData attributeData)
     {
-        var componentPrefix = ((string)attributeData.ConstructorArguments[0].Value!);
+        var componentType = TypeData.Create((INamedTypeSymbol)attributeData.ConstructorArguments[0].Value!, ComponentName);
         var eventType = (EventType)(attributeData.ConstructorArguments[1].Value ?? EventType.Added);
-        TriggeredBy = TriggeredBy.Add((componentPrefix, eventType));
+        TriggeredBy = TriggeredBy.Add((componentType, eventType));
         return true;
     }
 
@@ -103,7 +86,7 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
         return true;
     }
 
-    bool TryResolveInitializeSystemAttributeAttribute(AttributeData attributeData)
+    bool TryResolveInitializeSystemAttributeAttribute()
     {
         IsInitializeSystem = true;
         return true;
@@ -119,14 +102,17 @@ public struct SystemData : IClassDeclarationResolver, IAttributeResolver, IFinal
 
     bool TryResolveEntityIsAttribute(AttributeData attributeData)
     {
-        EntityIs = attributeData.ConstructorArguments[0].Values.Select(x => (string)x.Value!).ToImmutableArray();
+        EntityIs = attributeData.ConstructorArguments[0].Values
+            .Where(x=> x.Value is INamedTypeSymbol)
+            .Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName))
+            .ToImmutableArray();
         return true;
     }
 
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ManuallyAddedContexts = typedConstants.Select(x => (string)x.Value!).ToImmutableArray();
+        ManuallyAddedContexts = typedConstants.Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 

@@ -23,10 +23,10 @@ public sealed class GenerateComponent
                 stringBuilder.AppendLine(GetContent(componentData));
             }
 
-            // using (new CommentBuilder(stringBuilder))
-            // {
-            //     stringBuilder.AppendLine(componentData.ToString());
-            // }
+            using (new CommentBuilder(stringBuilder))
+            {
+                stringBuilder.AppendLine(componentData.ToString());
+            }
         }
         catch (Exception e)
         {

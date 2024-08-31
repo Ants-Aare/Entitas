@@ -69,7 +69,7 @@ public sealed class GenerateEntityExtensions
         foreach (var systemData in data.SystemDatas)
         {
             var systemCall = $"Context.{systemData.ValidLowerName}.OnEntityTriggered(this);";
-            var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.Name);
+            var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.TypeData);
             switch (eventType)
             {
                 case EventType.Added:
@@ -89,6 +89,14 @@ public sealed class GenerateEntityExtensions
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+        var setWithSelector = string.Empty;
+        if (componentData.Fields.Length > 0)
+        {
+            var selectorFuncs = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select((x, i) => $"System.Func<{contextData.Prefix}Entity, {x.TypeName}> selector{i}"));
+            var selectorCalls = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select((_, i) => $"selector{i}.Invoke(e)"));
+            setWithSelector = componentData.Fields.Length == 0 ? string.Empty : $"\n\tpublic static System.Collections.Generic.IEnumerable<{contextData.Prefix}Entity> Set{componentData.Prefix}s(this System.Collections.Generic.IEnumerable<{contextData.Prefix}Entity> entities, {selectorFuncs})\n\t{{\n\t\tforeach (var e in entities)\n\t\te.Set{componentData.Prefix}({selectorCalls});\n\t\treturn entities;\n\t}}";
         }
 
         return $$"""
@@ -159,8 +167,18 @@ public sealed class GenerateEntityExtensions
 
                      public static System.Collections.Generic.IEnumerable<bool> Has{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities) => System.Linq.Enumerable.Select(entities, e => e.Has{{componentData.Prefix}}());
                      public static System.Collections.Generic.IEnumerable<{{componentData.FullName}}> Get{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities) => System.Linq.Enumerable.Select(entities,e => e.Get{{componentData.Prefix}}());
-                     public static System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> Set{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities{{methodSignatureWithLeadingComma}}) => System.Linq.Enumerable.Select(entities,e => e.Set{{componentData.Prefix}}({{methodArguments}}));
-                     public static System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> Remove{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities) => System.Linq.Enumerable.Select(entities,e => e.Remove{{componentData.Prefix}}());
+                     public static System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> Set{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities{{methodSignatureWithLeadingComma}})
+                     {
+                        foreach (var e in entities)
+                            e.Set{{componentData.Prefix}}({{methodArguments}});
+                        return entities;
+                     }{{setWithSelector}}
+                     public static System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> Remove{{componentData.Prefix}}(this System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> entities)
+                     {
+                        foreach (var e in entities)
+                            e.Remove{{componentData.Prefix}}();
+                        return entities;
+                     }
                  }
                  """;
     }
