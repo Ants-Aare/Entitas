@@ -11,7 +11,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>
+public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>, IComparable<ContextData>, IComparable
 {
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<TypeData> Components = ImmutableArray<TypeData>.Empty;
@@ -80,7 +80,7 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
         return true;
     }
 
-    public ContextData Finalise()
+    public ContextData? Finalise()
     {
         Components = _components.ToImmutableArray();
         Systems = _systems.ToImmutableArray();
@@ -138,7 +138,7 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         return stringBuilder.ToString();
@@ -164,5 +164,16 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
             hashCode = (hashCode * 397) ^ FullName.GetHashCode();
             return hashCode;
         }
+    }
+
+    public int CompareTo(ContextData other)
+    {
+        return string.Compare(FullName, other.FullName, StringComparison.Ordinal);
+    }
+
+    public int CompareTo(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return 1;
+        return obj is ContextData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(ContextData)}");
     }
 }

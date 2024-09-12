@@ -46,7 +46,7 @@ public sealed class GenerateInterfaceExtensions
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(componentData.Namespace, $"I{componentData.Prefix}EntityExtensions"), stringBuilder.ToString());

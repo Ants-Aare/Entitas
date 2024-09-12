@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
@@ -10,7 +11,7 @@ namespace Entitas.Generators;
 
 public sealed class GenerateEntityExtensions
 {
-    public static void GenerateEntityExtensionsOutput(SourceProductionContext context, ExtendedComponentDataWithSystems data)
+    public static void GenerateEntityExtensionsOutput(SourceProductionContext context, ExtendedComponentDataWithSystemsAndGroups data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -30,7 +31,7 @@ public sealed class GenerateEntityExtensions
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), stringBuilder.ToString());
@@ -44,7 +45,7 @@ public sealed class GenerateEntityExtensions
                  """;
     }
 
-    static string GetDefaultContent(ExtendedComponentDataWithSystems data)
+    static string GetDefaultContent(ExtendedComponentDataWithSystemsAndGroups data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -91,6 +92,42 @@ public sealed class GenerateEntityExtensions
             }
         }
 
+        foreach (var groupData in data.GroupDatas)
+        {
+            var hasMultipleConditions = (groupData.AllOf.Length + groupData.AnyOf.Length + groupData.NoneOf.Length) > 1;
+            var condition = string.Empty;
+            if (hasMultipleConditions)
+            {
+                var conditions = new List<string>();
+                if(groupData.NoneOf.Length > 0)
+                    conditions.Add(string.Join(" && ", groupData.NoneOf.Select(x=> $"{x.Name} == null")));
+                if(groupData.AnyOf.Length > 0)
+                    conditions.Add($"({string.Join(" || ", groupData.AnyOf.Select(x=> $"{x.Name} != null"))})");
+                if(groupData.AllOf.Length > 0)
+                    conditions.Add(string.Join(" && ", groupData.AllOf.Select(x=> $"{x.Name} != null")));
+
+                condition = string.Join(" && ", conditions);
+            }
+            var addCall = $"Context.{groupData.ValidLowerName}Dictionary.Add(Id, this);";
+            var removeCall = $"Context.{groupData.ValidLowerName}Dictionary.Remove(Id);";
+
+            var onAdded = hasMultipleConditions
+                ? $"if({condition}) {addCall}"
+                : addCall;
+
+            var onRemoved = hasMultipleConditions
+                ? $"if(!({condition})) {removeCall}"
+                : removeCall;
+
+            if (groupData.NoneOf.Contains(componentData.TypeData))
+            {
+                (onAdded, onRemoved) = (onRemoved, onAdded);
+            }
+
+            onAddedEvents.AppendLine(onAdded);
+            onRemovedEvents.AppendLine(onRemoved);
+        }
+
         var setWithSelector = string.Empty;
         if (componentData.Fields.Length > 0)
         {
@@ -100,7 +137,8 @@ public sealed class GenerateEntityExtensions
         }
 
         return $$"""
-                     {{componentData.FullName}} {{componentData.Name}};
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                     public {{componentData.FullName}} {{componentData.Name}};
 
                      public bool Has{{componentData.Prefix}}() => this.{{componentData.Name}} != null;
 
@@ -183,7 +221,7 @@ public sealed class GenerateEntityExtensions
                  """;
     }
 
-    static string GetUniqueContent(ExtendedComponentDataWithSystems data)
+    static string GetUniqueContent(ExtendedComponentDataWithSystemsAndGroups data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;

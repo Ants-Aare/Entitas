@@ -31,7 +31,7 @@ public static class GenerateFeature
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(featureData.Namespace, featureData.Name), stringBuilder.ToString());

@@ -10,29 +10,31 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<SystemData>
+public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IConstructorResolver, IFinalisable<SystemData>, IComparable<SystemData>, IComparable
 {
-    public string? Namespace => TypeData.Namespace;
-    public string FullName => TypeData.FullName;
-    public string Name => TypeData.Name;
+    public TypeData TypeData { get; private set; } = default;
     public string ValidLowerName { get; private set; } = null!;
 
-    public TypeData TypeData { get; private set; } = default;
     public bool IsInitializeSystem { get; private set; } = false;
-
     public bool IsReactiveSystem { get; private set; } = false;
     public bool IsExecuteSystem { get; private set; } = false;
+    public bool IsCleanupSystem { get; private set; } = false;
+    public bool IsTeardownSystem { get; private set; } = false;
 
-    public Execution ReactiveExecution { get; private set; } = Execution.Manual;
-    public Execution ExecuteExecution { get; private set; } = Execution.Manual;
+    public SystemExecution ReactiveExecution { get; private set; } = SystemExecution.Manual;
+    public SystemExecution ExecuteExecution { get; private set; } = SystemExecution.Manual;
+    public SystemExecution CleanupExecution { get; private set; } = SystemExecution.Manual;
     public int ReactiveOrder { get; private set; } = 0;
     public int ExecuteOrder { get; private set; } = 0;
+    public int CleanupOrder { get; private set; } = 0;
 
     public ImmutableArray<(TypeData component, EventType eventType)> TriggeredBy { get; private set; } = ImmutableArray<(TypeData, EventType)>.Empty;
     public ImmutableArray<TypeData> EntityIs { get; private set; } = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
 
-
+    public string? Namespace => TypeData.Namespace;
+    public string FullName => TypeData.FullName;
+    public string Name => TypeData.Name;
 
     public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
@@ -54,6 +56,11 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFin
         ValidLowerName = Name.ToValidLowerName();
 
         return true;
+    }
+
+    public bool TryResolveConstructor(IMethodSymbol constructorMethod)
+    {
+        throw new NotImplementedException();
     }
 
     public bool TryResolveAttribute(AttributeData attributeData)
@@ -81,8 +88,8 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFin
     bool TryResolveReactiveSystemAttribute(AttributeData attributeData)
     {
         IsReactiveSystem = true;
-        ReactiveExecution = (Execution)(attributeData.ConstructorArguments[0].Value ?? Execution.Manual);
-        ReactiveOrder = (int)(attributeData.ConstructorArguments[0].Value ?? 0);
+        ReactiveExecution = (SystemExecution)(attributeData.ConstructorArguments[0].Value ?? SystemExecution.Manual);
+        ReactiveOrder = (int)(attributeData.ConstructorArguments[1].Value ?? 0);
         return true;
     }
 
@@ -95,16 +102,16 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFin
     bool TryResolveExecuteSystemAttribute(AttributeData attributeData)
     {
         IsExecuteSystem = true;
-        ExecuteExecution = (Execution)(attributeData.ConstructorArguments[0].Value ?? Execution.Manual);
-        ExecuteOrder = (int)(attributeData.ConstructorArguments[0].Value ?? 0);
+        ExecuteExecution = (SystemExecution)(attributeData.ConstructorArguments[0].Value ?? SystemExecution.Manual);
+        ExecuteOrder = (int)(attributeData.ConstructorArguments[1].Value ?? 0);
         return true;
     }
 
     bool TryResolveEntityIsAttribute(AttributeData attributeData)
     {
         EntityIs = attributeData.ConstructorArguments[0].Values
-            .Where(x=> x.Value is INamedTypeSymbol)
-            .Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName))
+            .Where(x => x.Value is INamedTypeSymbol)
+            .Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName))
             .ToImmutableArray();
         return true;
     }
@@ -116,7 +123,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFin
         return true;
     }
 
-    public SystemData Finalise()
+    public SystemData? Finalise()
     {
         return this;
     }
@@ -150,6 +157,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFin
                     stringBuilder.AppendLine($"      {components}");
                 }
             }
+
             if (ManuallyAddedContexts.Length > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
@@ -161,26 +169,57 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IFin
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         return stringBuilder.ToString();
     }
+
+    public int CompareTo(SystemData other)
+    {
+        var reactiveOrder = ReactiveOrder.CompareTo(other.ReactiveOrder);
+        return reactiveOrder == 0 ? string.Compare(Name, other.Name, StringComparison.Ordinal) : reactiveOrder;
+    }
+
+    public int CompareTo(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return 1;
+        return obj is SystemData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(SystemData)}");
+    }
 }
 
+[Flags]
 public enum Execution
 {
-    PreUpdate,
-    Update,
-    PostUpdate,
+    PreUpdate = 1 << 0,
+    PostUpdate = 1 << 1,
 
-    PreLateUpdate,
-    LateUpdate,
-    PostLateUpdate,
+    PreLateUpdate = 1 << 2,
+    PostLateUpdate = 1 << 3,
 
-    PreFixedUpdate,
-    FixedUpdate,
-    PostFixedUpdate,
+    PreFixedUpdate = 1 << 4,
+    PostFixedUpdate = 1 << 5,
+}
 
-    Manual,
+[Flags]
+public enum SystemExecution
+{
+    PreUpdate = 1 << 0,
+    PostUpdate = 1 << 1,
+
+    PreLateUpdate = 1 << 2,
+    PostLateUpdate = 1 << 3,
+
+    PreFixedUpdate = 1 << 4,
+    PostFixedUpdate = 1 << 5,
+
+    Manual = 1 << 6,
+}
+
+public static class SystemExecutionExtensions
+{
+    public static bool HasFlagFast(this SystemExecution value, SystemExecution flag)
+    {
+        return (value & flag) != 0;
+    }
 }

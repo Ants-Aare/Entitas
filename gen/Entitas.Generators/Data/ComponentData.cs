@@ -10,7 +10,8 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>, IEquatable<ComponentData>
+public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>,
+    IEquatable<ComponentData>, IComparable<ComponentData>, IComparable
 {
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
@@ -135,7 +136,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         return true;
     }
 
-    public ComponentData Finalise()
+    public ComponentData? Finalise()
     {
         if (IsUnique)
             IndexType = EntityIndexType.None;
@@ -195,7 +196,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         return stringBuilder.ToString();
@@ -223,6 +224,18 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
             hashCode = (hashCode * 397) ^ CleanupMode.GetHashCode();
             return hashCode;
         }
+    }
+
+    public int CompareTo(ComponentData other)
+    {
+        var isUniqueComparison = IsUnique.CompareTo(other.IsUnique);
+        return isUniqueComparison != 0 ? isUniqueComparison : string.Compare(FullName, other.FullName, StringComparison.Ordinal);
+    }
+
+    public int CompareTo(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return 1;
+        return obj is ComponentData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(ComponentData)}");
     }
 }
 

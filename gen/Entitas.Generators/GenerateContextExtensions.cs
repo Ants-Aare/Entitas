@@ -10,7 +10,7 @@ namespace Entitas.Generators;
 
 public sealed class GenerateContextExtensions
 {
-    public static void GenerateContextExtensionsOutput(SourceProductionContext context, ExtendedComponentDataWithSystems data)
+    public static void GenerateContextExtensionsOutput(SourceProductionContext context, ExtendedComponentDataWithSystemsAndGroups data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -37,7 +37,7 @@ public sealed class GenerateContextExtensions
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Name}{componentData.Prefix}Extensions"), stringBuilder.ToString());
@@ -51,7 +51,7 @@ public sealed class GenerateContextExtensions
                  """;
     }
 
-    static string GetUniqueContent(ExtendedComponentDataWithSystems data)
+    static string GetUniqueContent(ExtendedComponentDataWithSystemsAndGroups data)
     {
         var componentData = data.ComponentData;
         var contextData = data.ContextData;
@@ -91,7 +91,8 @@ public sealed class GenerateContextExtensions
         }
 
         return $$"""
-                  {{componentData.FullName}} {{componentData.Name}};
+                 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                 public {{componentData.FullName}} {{componentData.Name}};
 
                  public bool Has{{componentData.Prefix}}() => this.{{componentData.Name}} != null;
 
@@ -156,7 +157,9 @@ public sealed class GenerateContextExtensions
                 var method = $"static int Get{componentData.Prefix}Index({methodSignature}){getIndexMethod.Substring(1 + getIndexMethod.IndexOf(')'))}";
 
                 return $$"""
-                         {{contextData.Prefix}}Entity[] Indexed{{componentData.Prefix}}Entities = new {{contextData.Prefix}}Entity[{{componentData.IndexMaxSize}}];
+                         public System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> Indexed{{componentData.Prefix}}EntitiesGroup => (System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity>)Indexed{{componentData.Prefix}}Entities;
+                         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                         public {{contextData.Prefix}}Entity[] Indexed{{componentData.Prefix}}Entities = new {{contextData.Prefix}}Entity[{{componentData.IndexMaxSize}}];
 
                          [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
                          {{method}}
@@ -179,7 +182,9 @@ public sealed class GenerateContextExtensions
             case EntityIndexType.Dictionary:
                 var hashCodeFromMethodArguments = componentData.GetHashCodeFromMethodArguments();
                 return $$"""
-                         System.Collections.Generic.Dictionary<int, {{contextData.Prefix}}Entity> Indexed{{componentData.Prefix}}Entities = new ();
+                         public System.Collections.Generic.IEnumerable<{{contextData.Prefix}}Entity> Indexed{{componentData.Prefix}}EntitiesGroup => Indexed{{componentData.Prefix}}Entities.Values;
+                         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                         public System.Collections.Generic.Dictionary<int, {{contextData.Prefix}}Entity> Indexed{{componentData.Prefix}}Entities = new ();
                          public {{contextData.Prefix}}Entity GetEntityWith{{componentData.Prefix}}({{methodSignature}})
                          {
                          {{hashCodeFromMethodArguments}};

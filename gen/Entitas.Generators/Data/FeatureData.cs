@@ -78,10 +78,15 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
         return true;
     }
 
-    public FeatureData Finalise()
+    public FeatureData? Finalise()
     {
+        if (_components.Count == 0 && _systems.Count == 0)
+            return null;
+
         Components = _components.ToImmutableArray();
         Systems = _systems.ToImmutableArray();
+        _components.Clear();
+        _systems.Clear();
         return this;
     }
 
@@ -138,7 +143,7 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         return stringBuilder.ToString();

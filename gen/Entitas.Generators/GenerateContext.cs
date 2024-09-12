@@ -22,6 +22,9 @@ public sealed class GenerateContext
             using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
                 stringBuilder.AppendLine(GetContent(data));
+                if(data.GroupDatas.Length != 0)
+                    stringBuilder.AppendLine(GetGroupContent(data));
+                stringBuilder.Append('}');
             }
 
             using (new CommentBuilder(stringBuilder))
@@ -31,10 +34,20 @@ public sealed class GenerateContext
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(contextData.Namespace, contextData.Name), stringBuilder.ToString());
+    }
+
+    static string GetGroupContent(ExtendedContextData data)
+    {
+        // var contextData = data.ContextData;
+        // var groupDatas = data.GroupDatas;
+
+        return $$"""
+
+                 """;
     }
 
     static string GetContent(ExtendedContextData data)
@@ -42,6 +55,7 @@ public sealed class GenerateContext
         var contextData = data.ContextData;
         var componentDatas = data.ComponentDatas;
         var systemDatas = data.SystemDatas;
+        var groupDatas = data.GroupDatas;
         var strings = componentDatas.Length == 0 ? "null" : $"new[]{{{string.Join(", ", componentDatas.Select(static component => $"\"{component.Name}\""))}}}";
         var types = componentDatas.Length == 0 ? "null" : $"new[]{{{string.Join(", ", componentDatas.Select(static component => $"typeof({component.FullName})"))}}}";
         var systemReferences = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t", systemDatas.Select(static system => $"public {system.FullName} {system.ValidLowerName};"));
@@ -51,14 +65,14 @@ public sealed class GenerateContext
         var disableSystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Disable();"));
         var enableSystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Enable();"));
 
-        var uniqueComponents = data.ComponentDatas.Where(x=> x.IsUnique).ToList();
+        var uniqueComponents = data.ComponentDatas.Where(x => x.IsUnique).ToList();
         var destroyUnique = uniqueComponents.Count == 0 ? string.Empty : string.Join("\n\t\t", uniqueComponents.Select(static x => $"{x.FullName}.DestroyComponent({x.Name});"));
+        var groupDeclarations = string.Join("\n\t", groupDatas.Select( group => $"public System.Collections.Generic.IEnumerable<{contextData.Prefix}Entity> {group.Name} => {group.ValidLowerName}Dictionary.Values;\n\t[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]\n\tpublic readonly System.Collections.Generic.Dictionary<int, {contextData.Prefix}Entity> {group.ValidLowerName}Dictionary = new();"));
 
-        var systems = systemDatas.Where(x=> x.NeedsCustomInterface()).ToList();
+        var systems = systemDatas.Where(x => x.NeedsCustomInterface()).ToList();
         var systemInterfaces = systems.Count == 0 ? string.Empty : ',' + string.Join(", ", systems.Select(static x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Context"));
 
-        // var systems = contextData.Features.Where(x=> x.NeedsCustomInterface()).ToList();
-        var featureInterfaces = contextData.Features.Length == 0 ? string.Empty : ',' + string.Join(", ", contextData.Features.Select(static x =>$"{x.NamespaceSpecifier}I{x.Name}Context"));
+        var featureInterfaces = contextData.Features.Length == 0 ? string.Empty : ',' + string.Join(", ", contextData.Features.Select(static x => $"{x.NamespaceSpecifier}I{x.Name}Context"));
 
         return $$"""
                  public sealed partial class {{contextData.Name}} : Entitas.ContextBase{{systemInterfaces}}{{featureInterfaces}}
@@ -75,6 +89,7 @@ public sealed class GenerateContext
                      System.Collections.Generic.Dictionary<int, {{contextData.Prefix}}Entity> _enabledEntities = new();
                      {{contextData.Prefix}}Entity contextEntity;
                      {{systemReferences}}
+                     {{groupDeclarations}}
 
                      private {{contextData.Name}}()
                      {
@@ -87,6 +102,7 @@ public sealed class GenerateContext
                      {
                          var context = new {{contextData.Name}}();
                          {{constructorBody}}
+
                          return context;
                      }
 
@@ -114,6 +130,7 @@ public sealed class GenerateContext
                          return entity;
                      }
 
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      internal void ReturnEntity({{contextData.Prefix}}Entity entity)
                      {
                          if (contextEntity == entity)
@@ -134,7 +151,6 @@ public sealed class GenerateContext
                      {
                          DestroyContext();
                      }
-                 }
                  """;
     }
 }

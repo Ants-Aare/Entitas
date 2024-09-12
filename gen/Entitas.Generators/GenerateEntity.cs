@@ -25,7 +25,7 @@ public sealed class GenerateEntity
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
@@ -50,9 +50,11 @@ public sealed class GenerateEntity
                  public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}{{featureInterfaces}}
                  {
                      public {{contextData.Name}} Context { get; private set; }
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      internal {{contextData.Prefix}}Entity(){}
 
-                     public void InitializeEntity(int id, {{contextData.Name}} context)
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                     internal void InitializeEntity(int id, {{contextData.Name}} context)
                      {
                          Id = id;
                          Context = context;

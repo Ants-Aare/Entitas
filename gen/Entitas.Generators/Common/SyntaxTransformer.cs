@@ -31,7 +31,7 @@ public static class SyntaxTransformer
                 instance = (T)fieldResolver.ResolveFields(namedTypeSymbol, ct);
 
             if (instance is IFinalisable<T> finalisable)
-                instance = finalisable.Finalise();
+                return finalisable.Finalise();
 
             return instance;
         }
@@ -45,5 +45,5 @@ public static class SyntaxTransformer
 public interface IFinalisable<T>
     where T : struct, IClassDeclarationResolver
 {
-    public T Finalise();
+    public T? Finalise();
 }

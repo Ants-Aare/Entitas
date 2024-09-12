@@ -52,7 +52,7 @@ public sealed class GenerateSystem
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(systemData.Namespace, systemData.Name), stringBuilder.ToString());
@@ -131,6 +131,7 @@ public sealed class GenerateSystem
                          }
                      }
 
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      public void OnEntityTriggered({{entityType}} entity)
                      {
                          _collector.Add(entity);
@@ -155,11 +156,6 @@ public sealed class GenerateSystem
                          finally
                          {
                          }
-                     }
-
-                     public void OnEntityTriggered({{contextType}} entity)
-                     {
-                         _collector.Add(entity);
                      }
                  """;
     }

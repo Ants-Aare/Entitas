@@ -53,6 +53,8 @@ public static class StringConstants
 
     public const string TriggeredByAttributeName = "TriggeredByAttribute";
 
-
+    public const string AnyOfAttributeName = "AnyOfAttribute";
+    public const string AllOfAttributeName = "AllOfAttribute";
+    public const string NoneOfAttributeName = "NoneOfAttribute";
 
 }

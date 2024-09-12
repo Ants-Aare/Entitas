@@ -30,7 +30,7 @@ public sealed class GenerateComponent
         }
         catch (Exception e)
         {
-            stringBuilder.AppendLine(e.ToString());
+            stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
         context.AddSource(Templates.FileNameHint(componentData.Namespace, componentData.Name), stringBuilder.ToString());
