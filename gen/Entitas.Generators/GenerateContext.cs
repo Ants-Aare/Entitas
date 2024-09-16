@@ -56,14 +56,21 @@ public sealed class GenerateContext
         var componentDatas = data.ComponentDatas;
         var systemDatas = data.SystemDatas;
         var groupDatas = data.GroupDatas;
+        var constructorArguments = systemDatas.SelectMany(x => x.ConstructorArguments).Distinct(FieldData.TypeAndNameComparer).ToList();
+        var initializeSystemDatas = systemDatas.Where(x => x.IsInitializeSystem).ToList();
+        initializeSystemDatas.Sort((a, b) => a.InitializeOrder.CompareTo(b.InitializeOrder));
+        var teardownSystemDatas = systemDatas.Where(x => x.IsTeardownSystem).ToList();
+        teardownSystemDatas.Sort((a, b) => a.TeardownOrder.CompareTo(b.TeardownOrder));
         var strings = componentDatas.Length == 0 ? "null" : $"new[]{{{string.Join(", ", componentDatas.Select(static component => $"\"{component.Name}\""))}}}";
         var types = componentDatas.Length == 0 ? "null" : $"new[]{{{string.Join(", ", componentDatas.Select(static component => $"typeof({component.FullName})"))}}}";
         var systemReferences = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t", systemDatas.Select(static system => $"public {system.FullName} {system.ValidLowerName};"));
-        var constructorSignature = systemDatas.Length == 0 ? string.Empty : string.Join(", ", systemDatas.Select(static system => $"{system.FullName} {system.Name}"));
-        var constructorBody = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"context.{system.ValidLowerName} = {system.Name};\n\t\t{system.Name}.Context = context;\n\t\t{system.Name}.Enable();\n"));
+        var constructorSignature = constructorArguments.Count == 0 ? string.Empty : string.Join(", ", constructorArguments.Select(static field => $"{field.TypeName} _{field.Name}"));
+        var constructorBody = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"context.{system.ValidLowerName} = new {system.FullName}({system.GetConstructor()}){{Context = context}};\n\t\tcontext.{system.ValidLowerName}.Enable();\n"));
         var destroySystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Disable();\n\t\t{system.ValidLowerName} = null;"));
         var disableSystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Disable();"));
         var enableSystems = systemDatas.Length == 0 ? string.Empty : string.Join("\n\t\t", systemDatas.Select(static system => $"{system.ValidLowerName}.Enable();"));
+        var initializeSystems = initializeSystemDatas.Count == 0 ? string.Empty : string.Join("\n\t\t", initializeSystemDatas.Select(static system => $"context.{system.ValidLowerName}.Initialize(); // Order: {system.InitializeOrder}"));
+        var teardownSystems = teardownSystemDatas.Count == 0 ? string.Empty : string.Join("\n\t\t", teardownSystemDatas.Select(static system => $"{system.ValidLowerName}.Teardown(); // Order: {system.TeardownOrder}"));
 
         var uniqueComponents = data.ComponentDatas.Where(x => x.IsUnique).ToList();
         var destroyUnique = uniqueComponents.Count == 0 ? string.Empty : string.Join("\n\t\t", uniqueComponents.Select(static x => $"{x.FullName}.DestroyComponent({x.Name});"));
@@ -102,12 +109,13 @@ public sealed class GenerateContext
                      {
                          var context = new {{contextData.Name}}();
                          {{constructorBody}}
-
+                         {{initializeSystems}}
                          return context;
                      }
 
                      public void DestroyContext()
                      {
+                         {{teardownSystems}}
                          contextEntity.DestroyImmediate();
                          foreach (var (_,entity) in _enabledEntities)
                          {

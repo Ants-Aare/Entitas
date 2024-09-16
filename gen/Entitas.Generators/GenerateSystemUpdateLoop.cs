@@ -73,9 +73,9 @@ public static class GenerateSystemUpdateLoop
 
     public static void AddSystemsForExecution(StringBuilder sb, ImmutableArray<SystemData> systemDatas, SystemExecution execution)
     {
-        var reactive = systemDatas.Where(x => x.IsReactiveSystem && x.ReactiveExecution.HasFlagFast(execution)).Select(x => (x.ReactiveOrder, $"\t\t\t{x.FullName}.UpdateReactiveSystems, //Order: {x.ReactiveOrder}"));
-        var execute = systemDatas.Where(x => x.IsExecuteSystem && x.ExecuteExecution.HasFlagFast(execution)).Select(x => (x.ExecuteOrder, $"\t\t\t{x.FullName}.UpdateExecuteSystems, //Order: {x.ExecuteOrder}"));
-        var cleanup = systemDatas.Where(x => x.IsCleanupSystem && x.CleanupExecution.HasFlagFast(execution)).Select(x => (x.CleanupOrder, $"\t\t\t{x.FullName}.Cleanup, //Order: {x.CleanupOrder}"));
+        var reactive = systemDatas.Where(x => x.IsReactiveSystem && x.ReactiveExecution.HasFlagFast(execution)).Select(x => (x.ReactiveOrder, $"\t\t\t{x.FullName}.UpdateReactiveSystems, // Order: {x.ReactiveOrder}"));
+        var execute = systemDatas.Where(x => x.IsExecuteSystem && x.ExecuteExecution.HasFlagFast(execution)).Select(x => (x.ExecuteOrder, $"\t\t\t{x.FullName}.UpdateExecuteSystems, // Order: {x.ExecuteOrder}"));
+        var cleanup = systemDatas.Where(x => x.IsCleanupSystem && x.CleanupExecution.HasFlagFast(execution)).Select(x => (x.CleanupOrder, $"\t\t\t{x.FullName}.Cleanup, // Order: {x.CleanupOrder}"));
 
         var systems = reactive.Concat(execute).ToList();
         systems.Sort(new SystemSortComparer());

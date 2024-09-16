@@ -70,13 +70,19 @@ public sealed class GenerateSystem
         {
             if (systemData.IsReactiveSystem)
                 interfaces.Append(',');
-            interfaces.Append(string.IsNullOrEmpty(contextType) ? "Entitas.IExecuteSystem" : $"Entitas.IExecuteSystem<{contextType}>");
+            interfaces.Append("Entitas.IExecuteSystem"); //string.IsNullOrEmpty(contextType) ? "Entitas.IExecuteSystem" : $"Entitas.IExecuteSystem<{contextType}>");
         }
         if (systemData.IsInitializeSystem)
         {
             if (systemData.IsReactiveSystem || systemData.IsExecuteSystem)
                 interfaces.Append(',');
-            interfaces.Append(string.IsNullOrEmpty(contextType) ? "Entitas.IInitializeSystem" : $"Entitas.IInitializeSystem<{contextType}>");
+            interfaces.Append("Entitas.IInitializeSystem"); //string.IsNullOrEmpty(contextType) ? "Entitas.IInitializeSystem" : $"Entitas.IInitializeSystem<{contextType}>");
+        }
+        if (systemData.IsTeardownSystem)
+        {
+            if (systemData.IsReactiveSystem || systemData.IsExecuteSystem || systemData.IsInitializeSystem)
+                interfaces.Append(',');
+            interfaces.Append("Entitas.ITeardownSystem"); //string.IsNullOrEmpty(contextType) ? "Entitas.ITeardownSystem" : $"Entitas.IInitializeSystem<{contextType}>");
         }
 
         var contextDeclaration = string.IsNullOrEmpty(contextType) ? string.Empty : $"public {contextType} Context;";
@@ -100,8 +106,11 @@ public sealed class GenerateSystem
     static string GetReactiveContent(string entityType)
     {
         return $$"""
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      readonly System.Collections.Generic.HashSet<{{entityType}}> _collector = new ();
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      readonly System.Collections.Generic.List<{{entityType}}> _buffer = new ();
+
                      public static void UpdateReactiveSystems()
                      {
                          foreach (var systemInstance in Instances)
@@ -151,7 +160,7 @@ public sealed class GenerateSystem
                      {
                          try
                          {
-                             Execute({{(string.IsNullOrEmpty(contextType) ? string.Empty : "Context")}});
+                             Execute();
                          }
                          finally
                          {

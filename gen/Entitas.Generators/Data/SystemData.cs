@@ -10,7 +10,7 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IConstructorResolver, IFinalisable<SystemData>, IComparable<SystemData>, IComparable
+public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IConstructorResolver, IFinalisable<SystemData>, IComparable<SystemData>
 {
     public TypeData TypeData { get; private set; } = default;
     public string ValidLowerName { get; private set; } = null!;
@@ -27,10 +27,13 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     public int ReactiveOrder { get; private set; } = 0;
     public int ExecuteOrder { get; private set; } = 0;
     public int CleanupOrder { get; private set; } = 0;
+    public int InitializeOrder { get; private set; } = 0;
+    public int TeardownOrder { get; private set; } = 0;
 
     public ImmutableArray<(TypeData component, EventType eventType)> TriggeredBy { get; private set; } = ImmutableArray<(TypeData, EventType)>.Empty;
     public ImmutableArray<TypeData> EntityIs { get; private set; } = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<FieldData> ConstructorArguments { get; private set; } = ImmutableArray<FieldData>.Empty;
 
     public string? Namespace => TypeData.Namespace;
     public string FullName => TypeData.FullName;
@@ -60,7 +63,10 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
 
     public bool TryResolveConstructor(IMethodSymbol constructorMethod)
     {
-        throw new NotImplementedException();
+        if (constructorMethod.Parameters.IsDefaultOrEmpty)
+            return true;
+        ConstructorArguments = constructorMethod.Parameters.Select(x=> new FieldData(x.Type.ToDisplayString(), x.Name)).ToImmutableArray();
+        return true;
     }
 
     public bool TryResolveAttribute(AttributeData attributeData)
@@ -68,7 +74,8 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
         return attributeData switch
         {
             { AttributeClass.Name: ReactiveSystemAttributeName } => TryResolveReactiveSystemAttribute(attributeData),
-            { AttributeClass.Name: InitializeSystemAttributeName } => TryResolveInitializeSystemAttributeAttribute(),
+            { AttributeClass.Name: InitializeSystemAttributeName } => TryResolveInitializeSystemAttribute(attributeData),
+            { AttributeClass.Name: TeardownSystemAttributeName } => TryResolveTeardownSystemAttribute(attributeData),
             { AttributeClass.Name: ExecuteSystemAttributeName } => TryResolveExecuteSystemAttribute(attributeData),
             { AttributeClass.Name: EntityIsAttributeName } => TryResolveEntityIsAttribute(attributeData),
             { AttributeClass.Name: AddToContextAttributeName } => TryResolveAddToContextAttribute(attributeData),
@@ -93,9 +100,16 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
         return true;
     }
 
-    bool TryResolveInitializeSystemAttributeAttribute()
+    bool TryResolveInitializeSystemAttribute(AttributeData attributeData)
     {
         IsInitializeSystem = true;
+        InitializeOrder = (int)(attributeData.ConstructorArguments[0].Value ?? 0);
+        return true;
+    }
+    bool TryResolveTeardownSystemAttribute(AttributeData attributeData)
+    {
+        IsTeardownSystem = true;
+        TeardownOrder = (int)(attributeData.ConstructorArguments[0].Value ?? 0);
         return true;
     }
 
@@ -136,9 +150,11 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
             stringBuilder.AppendLine($"   {nameof(Namespace)}: {Namespace}")
                 .AppendLine($"   {nameof(FullName)}: {FullName}")
                 .AppendLine($"   {nameof(Name)}: {Name}")
-                .AppendLine($"   {nameof(IsInitializeSystem)}: {IsInitializeSystem}")
+                .AppendLine($"   {nameof(IsInitializeSystem)}: {IsInitializeSystem} {CleanupOrder}")
+                .AppendLine($"   {nameof(IsTeardownSystem)}: {IsTeardownSystem} {TeardownOrder}")
                 .AppendLine($"   {nameof(IsReactiveSystem)}: {IsReactiveSystem} {ReactiveExecution} {ReactiveOrder}")
-                .AppendLine($"   {nameof(IsExecuteSystem)}: {IsExecuteSystem} {ExecuteExecution} {ExecuteOrder}");
+                .AppendLine($"   {nameof(IsExecuteSystem)}: {IsExecuteSystem} {ExecuteExecution} {ExecuteOrder}")
+                .AppendLine($"   {nameof(IsCleanupSystem)}: {IsCleanupSystem} {CleanupOrder}");
 
             if (TriggeredBy.Length > 0)
             {
@@ -162,6 +178,14 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
             {
                 stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
                 foreach (var contexts in ManuallyAddedContexts)
+                {
+                    stringBuilder.AppendLine($"      {contexts}");
+                }
+            }
+            if (ConstructorArguments.Length > 0)
+            {
+                stringBuilder.AppendLine($"   {nameof(ConstructorArguments)}:");
+                foreach (var contexts in ConstructorArguments)
                 {
                     stringBuilder.AppendLine($"      {contexts}");
                 }

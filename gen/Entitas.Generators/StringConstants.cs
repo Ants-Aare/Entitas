@@ -19,6 +19,7 @@ public static class StringConstants
 
     public const string InitializeSystemName = "InitializeSystem";
     public const string InitializeSystemAttributeName = "InitializeSystemAttribute";
+    public const string TeardownSystemAttributeName = "TeardownSystemAttribute";
 
     public const string ExecuteSystemName = "ExecuteSystem";
     public const string ExecuteSystemAttributeName = "ExecuteSystemAttribute";

@@ -10,7 +10,7 @@ public interface IConstructorResolver
 
 public static class ConstructorResolverExtension
 {
-    public static bool ResolveConstructors(this IConstructorResolver constructorResolver, INamedTypeSymbol namedTypeSymbol, CancellationToken ct)
+    public static IConstructorResolver ResolveConstructors(this IConstructorResolver constructorResolver, INamedTypeSymbol namedTypeSymbol, CancellationToken ct)
     {
         foreach (var constructor in namedTypeSymbol.Constructors)
         {
@@ -19,9 +19,9 @@ public static class ConstructorResolverExtension
             ct.ThrowIfCancellationRequested();
 
             if (constructorResolver.TryResolveConstructor(constructor) == false)
-                return false;
+                return constructorResolver;
         }
 
-        return true;
+        return constructorResolver;
     }
 }

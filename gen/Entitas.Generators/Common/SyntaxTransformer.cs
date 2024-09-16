@@ -23,8 +23,8 @@ public static class SyntaxTransformer
 
             if (instance is IAttributeResolver attributeResolver)
                 instance = (T)attributeResolver.ResolveAttributes(namedTypeSymbol, ct);
-            // if (instance is IConstructorResolver constructorResolver)
-            // constructorResolver.ResolveConstructors(namedTypeSymbol, ct);
+            if (instance is IConstructorResolver constructorResolver)
+                instance = (T)constructorResolver.ResolveConstructors(namedTypeSymbol, ct);
             if (instance is IMethodResolver methodResolver)
                 instance = (T)methodResolver.ResolveMethods(namedTypeSymbol, ct);
             if (instance is IFieldResolver fieldResolver)

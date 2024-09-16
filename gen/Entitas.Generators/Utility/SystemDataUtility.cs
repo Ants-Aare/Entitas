@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Entitas.Generators.Data;
 
 namespace Entitas.Generators.Utility;
@@ -48,4 +49,9 @@ public static class SystemDataUtility
         => systemData.EntityIs.Length > 0 && systemData.EntityIs[0].FullName.EndsWith("Feature", StringComparison.Ordinal);
 
     public static bool NeedsCustomInterface(this SystemData systemData) => systemData.HasMultipleConstraints() && !systemData.EntityIsContext();
+
+    public static string GetConstructor(this SystemData systemData)
+    {
+        return systemData.ConstructorArguments.Length == 0 ? String.Empty : string.Join(", ", systemData.ConstructorArguments.Select(x => $"_{x.Name}"));
+    }
 }
