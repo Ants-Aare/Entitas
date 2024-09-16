@@ -46,6 +46,11 @@ public sealed class GenerateComponent
         var interfaceUsage = componentData.IndexType == EntityIndexType.Array ? $": I{componentData.Prefix}Indexable" : string.Empty;
         var interfaceDeclaration = componentData.IndexType == EntityIndexType.Array ? $"public interface I{componentData.Prefix}Indexable{{public int GetIndex({methodSignature});}}" : string.Empty;
 
+        var implicitTarget = componentData.Fields.Where(x => !x.isTypeAnInterface).ToList();
+        var implicitOperator = implicitTarget.Count == 0
+            ? $"public static implicit operator bool({componentData.Name} component) => component != null;"
+            : $"public static implicit operator {implicitTarget[0].TypeName}({componentData.Name} component) => component.{implicitTarget[0].Name};";
+
         return $$"""
                  {{interfaceDeclaration}}
                  public sealed partial class {{componentData.Name}}{{interfaceUsage}}
@@ -57,6 +62,7 @@ public sealed class GenerateComponent
                          {{ctorAssignments}}
                      }
 
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      public static {{componentData.Name}} CreateComponent({{methodSignature}})
                      {
                          if (ComponentPool.Count <= 0)
@@ -67,6 +73,7 @@ public sealed class GenerateComponent
                          {{createAssignments}}
                          return component;
                      }
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      public static void DestroyComponent({{componentData.Name}} component)
                      {
                         if(component == null)
@@ -74,6 +81,7 @@ public sealed class GenerateComponent
                          {{destroyAssignments}}
                          ComponentPool.Push(component);
                      }
+                     {{implicitOperator}}
                  }
                  """;
     }
