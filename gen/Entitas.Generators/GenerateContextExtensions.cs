@@ -90,6 +90,11 @@ public sealed class GenerateContextExtensions
             }
         }
 
+        if (componentData.IsCleanup)
+        {
+            onAddedEvents.AppendLine($"{componentData.FullName}.Collector.Add(this);");
+        }
+
         return $$"""
                  [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                  public {{componentData.FullName}} {{componentData.Name}};

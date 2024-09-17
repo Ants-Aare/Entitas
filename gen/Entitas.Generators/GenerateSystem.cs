@@ -12,6 +12,9 @@ public sealed class GenerateSystem
 {
     public static void GenerateSystemOutput(SourceProductionContext context, SystemData systemData)
     {
+        if (systemData.IsCleanupSystem)
+            return;
+
         var stringBuilder = new StringBuilder();
         try
         {
@@ -28,16 +31,14 @@ public sealed class GenerateSystem
                     stringBuilder.AppendLine(GetReactiveContent(entityType));
                 if (systemData.IsExecuteSystem)
                     stringBuilder.AppendLine(GetExecuteContent(contextType));
-                // if (systemData.IsInitializeSystem)
-                //     stringBuilder.AppendLine(GetInitializeContent(entityType));
 
                 stringBuilder.Append('}');
                 if (systemData.HasMultipleConstraints())
                 {
                     var components = systemData.TriggeredBy
-                        .Select(x=> x.component)
+                        .Select(x => x.component)
                         .Concat(systemData.EntityIs)
-                        .Where(x=> x.Prefix != null)
+                        .Where(x => x.Prefix != null)
                         .ToList();
                     var entities = string.Join(", ", components.Select(x => $"{x.NamespaceSpecifier}I{x.Prefix}Entity"));
                     var contexts = string.Join(", ", components.Select(x => $"{x.NamespaceSpecifier}I{x.Prefix}Context"));
@@ -72,12 +73,14 @@ public sealed class GenerateSystem
                 interfaces.Append(',');
             interfaces.Append("Entitas.IExecuteSystem"); //string.IsNullOrEmpty(contextType) ? "Entitas.IExecuteSystem" : $"Entitas.IExecuteSystem<{contextType}>");
         }
+
         if (systemData.IsInitializeSystem)
         {
             if (systemData.IsReactiveSystem || systemData.IsExecuteSystem)
                 interfaces.Append(',');
             interfaces.Append("Entitas.IInitializeSystem"); //string.IsNullOrEmpty(contextType) ? "Entitas.IInitializeSystem" : $"Entitas.IInitializeSystem<{contextType}>");
         }
+
         if (systemData.IsTeardownSystem)
         {
             if (systemData.IsReactiveSystem || systemData.IsExecuteSystem || systemData.IsInitializeSystem)

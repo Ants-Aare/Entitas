@@ -10,19 +10,21 @@ using static Entitas.Generators.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>,
-    IEquatable<ComponentData>, IComparable<ComponentData>, IComparable
+public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>, IComparable<ComponentData>, IComparable, IEquatable<ComponentData>
 {
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
     public ImmutableArray<ComponentEventData> Events { get; private set; } = ImmutableArray<ComponentEventData>.Empty;
-    public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Contexts = ImmutableArray<TypeData>.Empty;
 
     public bool IsUnique { get; private set; } = false;
     public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
     public int IndexMaxSize { get; private set; } = 1000;
     public string? GetIndexMethod { get; private set; } = null;
-    public CleanupMode? CleanupMode { get; private set; } = null;
+    public bool IsCleanup { get; private set; } = false;
+    public CleanupMode CleanupMode { get; private set; } = CleanupMode.RemoveComponent;
+    public Execution CleanupExecution { get; private set; } = Execution.PostUpdate;
+    public int CleanupOrder { get; private set; } = 0;
 
     public string? Namespace => TypeData.Namespace;
     public string FullName => TypeData.FullName;
@@ -80,13 +82,17 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ManuallyAddedContexts = typedConstants.Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
+        Contexts = typedConstants.Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 
     bool TryResolveCleanupAttribute(AttributeData attributeData)
     {
-        CleanupMode = (CleanupMode)(attributeData.ConstructorArguments[0].Value ?? CleanupMode == Data.CleanupMode.RemoveComponent);
+        IsCleanup = true;
+        CleanupMode = (CleanupMode)(attributeData.ConstructorArguments[0].Value ?? CleanupMode == CleanupMode.RemoveComponent);
+        CleanupExecution = (Execution)(attributeData.ConstructorArguments[1].Value ?? Execution.PostUpdate);
+        CleanupOrder = (int)(attributeData.ConstructorArguments[2].Value ?? 0);
+
         return true;
     }
 
@@ -182,10 +188,10 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
                 }
             }
 
-            if (ManuallyAddedContexts.Length > 0)
+            if (Contexts.Length > 0)
             {
-                stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
-                foreach (var contexts in ManuallyAddedContexts)
+                stringBuilder.AppendLine($"   {nameof(Contexts)}:");
+                foreach (var contexts in Contexts)
                 {
                     stringBuilder.AppendLine($"      {contexts}");
                 }
@@ -204,7 +210,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
 
     public bool Equals(ComponentData other)
     {
-        return FullName == other.FullName && Fields.Equals(other.Fields) && Events.Equals(other.Events) && ManuallyAddedContexts.Equals(other.ManuallyAddedContexts) && IsUnique == other.IsUnique && CleanupMode == other.CleanupMode;
+        return Contexts.Equals(other.Contexts) && TypeData.Equals(other.TypeData) && Fields.Equals(other.Fields) && Events.Equals(other.Events) && IsUnique == other.IsUnique && IndexType == other.IndexType && IndexMaxSize == other.IndexMaxSize && IsCleanup == other.IsCleanup && CleanupMode == other.CleanupMode && CleanupExecution == other.CleanupExecution && CleanupOrder == other.CleanupOrder;
     }
 
     public override bool Equals(object? obj)
@@ -216,12 +222,17 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
     {
         unchecked
         {
-            var hashCode = FullName.GetHashCode();
+            var hashCode = TypeData.GetHashCode();
             hashCode = (hashCode * 397) ^ Fields.GetHashCode();
+            hashCode = (hashCode * 397) ^ Contexts.GetHashCode();
             hashCode = (hashCode * 397) ^ Events.GetHashCode();
-            hashCode = (hashCode * 397) ^ ManuallyAddedContexts.GetHashCode();
             hashCode = (hashCode * 397) ^ IsUnique.GetHashCode();
-            hashCode = (hashCode * 397) ^ CleanupMode.GetHashCode();
+            hashCode = (hashCode * 397) ^ (int)IndexType;
+            hashCode = (hashCode * 397) ^ IndexMaxSize;
+            hashCode = (hashCode * 397) ^ IsCleanup.GetHashCode();
+            hashCode = (hashCode * 397) ^ (int)CleanupMode;
+            hashCode = (hashCode * 397) ^ (int)CleanupExecution;
+            hashCode = (hashCode * 397) ^ CleanupOrder;
             return hashCode;
         }
     }

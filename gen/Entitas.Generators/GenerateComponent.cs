@@ -51,6 +51,8 @@ public sealed class GenerateComponent
             ? $"public static implicit operator bool({componentData.Name} component) => component != null;"
             : $"public static implicit operator {implicitTarget[0].TypeName}({componentData.Name} component) => component.{implicitTarget[0].Name};";
 
+        var cleanupContent = componentData.IsCleanup ? GetCleanupContent(componentData) : string.Empty;
+
         return $$"""
                  {{interfaceDeclaration}}
                  public sealed partial class {{componentData.Name}}{{interfaceUsage}}
@@ -81,8 +83,43 @@ public sealed class GenerateComponent
                          {{destroyAssignments}}
                          ComponentPool.Push(component);
                      }
+                     {{cleanupContent}}
                      {{implicitOperator}}
                  }
                  """;
+    }
+
+    static string GetCleanupContent(ComponentData componentData)
+    {
+        return componentData.IsUnique
+            ? $$"""
+                    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                    public static readonly System.Collections.Generic.HashSet<I{{componentData.Prefix}}Context> Collector = new ();
+                    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                    public static void Cleanup()
+                    {
+                        if (Collector.Count == 0)
+                            return;
+
+                        foreach (var context in Collector)
+                            context.Remove{{componentData.Prefix}}();
+                        Collector.Clear();
+                    }
+                """
+            : $$"""
+
+                    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                    public static readonly System.Collections.Generic.HashSet<I{{componentData.Prefix}}Entity> Collector = new ();
+                    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                    public static void Cleanup()
+                    {
+                        if (Collector.Count == 0)
+                            return;
+
+                        foreach (var entity in Collector)
+                            {{(componentData.CleanupMode == CleanupMode.RemoveComponent ? $"entity.Remove{componentData.Prefix}();" : "entity.DestroyImmediate();")}}
+                        Collector.Clear();
+                    }
+                """;
     }
 }

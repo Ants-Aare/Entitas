@@ -128,6 +128,11 @@ public sealed class GenerateEntityExtensions
             onRemovedEvents.AppendLine(onRemoved);
         }
 
+        if (componentData.IsCleanup)
+        {
+            onAddedEvents.AppendLine($"{componentData.FullName}.Collector.Add(this);");
+        }
+
         var setWithSelector = string.Empty;
         if (componentData.Fields.Length > 0)
         {

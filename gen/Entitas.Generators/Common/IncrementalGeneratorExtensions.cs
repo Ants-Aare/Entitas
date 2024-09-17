@@ -19,6 +19,9 @@ public static class IncrementalGeneratorExtensions
 
     public static IncrementalValuesProvider<T> Append<T>(this IncrementalValuesProvider<T> valuesProvider, IncrementalValuesProvider<T> other) where T : struct
         => valuesProvider.Collect().Combine(other.Collect()).SelectMany((x, _) => x.Left.AddRange(x.Right));
+
+    public static IncrementalValueProvider<ImmutableArray<T>> Append<T>(this IncrementalValueProvider<ImmutableArray<T>> valueProvider, IncrementalValueProvider<ImmutableArray<T>> other) where T : struct
+        => valueProvider.Combine(other).Select((tuple, _) => tuple.Left.AddRange(tuple.Right));
     public static IncrementalValuesProvider<T> AppendWithoutDuplicates<T>(this IncrementalValuesProvider<T> valuesProvider, IncrementalValuesProvider<T> other) where T : struct
         => valuesProvider.Collect().Combine(other.Collect()).SelectMany((x, _) => x.Left.AddRange(x.Right).Distinct());
 

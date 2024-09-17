@@ -83,7 +83,10 @@ public static class GenerateSystemUpdateLoop
         systems.Sort(new SystemSortComparer());
 
         if (cleanupSystems.Count > 0)
+        {
+            systems.Add(new ValueTuple<int, string>(0, "\n"));
             systems.AddRange(cleanupSystems);
+        }
 
         if (systems.Count == 0)
             return;

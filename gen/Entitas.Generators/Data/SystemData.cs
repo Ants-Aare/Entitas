@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -16,23 +17,26 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     public string ValidLowerName { get; private set; } = null!;
 
     public bool IsInitializeSystem { get; private set; } = false;
-    public bool IsReactiveSystem { get; private set; } = false;
-    public bool IsExecuteSystem { get; private set; } = false;
-    public bool IsCleanupSystem { get; private set; } = false;
-    public bool IsTeardownSystem { get; private set; } = false;
-
-    public SystemExecution ReactiveExecution { get; private set; } = SystemExecution.Manual;
-    public SystemExecution ExecuteExecution { get; private set; } = SystemExecution.Manual;
-    public SystemExecution CleanupExecution { get; private set; } = SystemExecution.Manual;
-    public int ReactiveOrder { get; private set; } = 0;
-    public int ExecuteOrder { get; private set; } = 0;
-    public int CleanupOrder { get; private set; } = 0;
     public int InitializeOrder { get; private set; } = 0;
+
+    public bool IsTeardownSystem { get; private set; } = false;
     public int TeardownOrder { get; private set; } = 0;
 
+    public bool IsReactiveSystem { get; private set; } = false;
+    public SystemExecution ReactiveExecution { get; private set; } = SystemExecution.Manual;
+    public int ReactiveOrder { get; private set; } = 0;
     public ImmutableArray<(TypeData component, EventType eventType)> TriggeredBy { get; private set; } = ImmutableArray<(TypeData, EventType)>.Empty;
     public ImmutableArray<TypeData> EntityIs { get; private set; } = ImmutableArray<TypeData>.Empty;
-    public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
+
+    public bool IsExecuteSystem { get; private set; } = false;
+    public SystemExecution ExecuteExecution { get; private set; } = SystemExecution.Manual;
+    public int ExecuteOrder { get; private set; } = 0;
+
+    public bool IsCleanupSystem { get; private set; } = false;
+    public SystemExecution CleanupExecution { get; private set; } = SystemExecution.Manual;
+    public int CleanupOrder { get; private set; } = 0;
+
+    public ImmutableArray<TypeData> Contexts { get; private set; } = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<FieldData> ConstructorArguments { get; private set; } = ImmutableArray<FieldData>.Empty;
 
     public string? Namespace => TypeData.Namespace;
@@ -65,7 +69,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     {
         if (constructorMethod.Parameters.IsDefaultOrEmpty)
             return true;
-        ConstructorArguments = constructorMethod.Parameters.Select(x=> new FieldData(x.Type.ToDisplayString(), x.Name)).ToImmutableArray();
+        ConstructorArguments = constructorMethod.Parameters.Select(x => new FieldData(x.Type.ToDisplayString(), x.Name)).ToImmutableArray();
         return true;
     }
 
@@ -106,6 +110,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
         InitializeOrder = (int)(attributeData.ConstructorArguments[0].Value ?? 0);
         return true;
     }
+
     bool TryResolveTeardownSystemAttribute(AttributeData attributeData)
     {
         IsTeardownSystem = true;
@@ -133,13 +138,25 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ManuallyAddedContexts = typedConstants.Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
+        Contexts = typedConstants.Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 
     public SystemData? Finalise()
     {
         return this;
+    }
+
+    public static SystemData CreateCleanupSystem(ComponentData componentData)
+    {
+        var system = new SystemData
+        {
+            TypeData = componentData.TypeData,
+            IsCleanupSystem = true,
+            CleanupExecution = (SystemExecution)componentData.CleanupExecution,
+            CleanupOrder = componentData.CleanupOrder,
+        };
+        return system;
     }
 
     public override string ToString()
@@ -174,14 +191,15 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
                 }
             }
 
-            if (ManuallyAddedContexts.Length > 0)
+            if (Contexts.Length > 0)
             {
-                stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
-                foreach (var contexts in ManuallyAddedContexts)
+                stringBuilder.AppendLine($"   {nameof(Contexts)}:");
+                foreach (var contexts in Contexts)
                 {
                     stringBuilder.AppendLine($"      {contexts}");
                 }
             }
+
             if (ConstructorArguments.Length > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(ConstructorArguments)}:");
@@ -210,6 +228,16 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
         if (ReferenceEquals(null, obj)) return 1;
         return obj is SystemData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(SystemData)}");
     }
+    sealed class CleanupOrderRelationalComparer : IComparer<SystemData>
+    {
+        public int Compare(SystemData x, SystemData y)
+        {
+            var orderComparison = x.CleanupOrder.CompareTo(y.CleanupOrder);
+            return orderComparison == 0 ? string.Compare(x.Name, y.Name, StringComparison.Ordinal) : orderComparison;
+        }
+    }
+
+    public static IComparer<SystemData> CleanupOrderComparer { get; } = new CleanupOrderRelationalComparer();
 }
 
 [Flags]
