@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using Entitas.Generators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Generators;
 using Microsoft.CodeAnalysis;
 
 namespace Entitas.Generators;
@@ -12,6 +13,10 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext initContext)
     {
+        var archetypeDatas = initContext.SyntaxProvider
+            .CreateSyntaxProvider(ArchetypeData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ArchetypeData>)
+            .RemoveEmptyValues();
+
         var groupDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(GroupData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<GroupData>)
             .RemoveEmptyValues()
@@ -36,12 +41,20 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .RemoveEmptyValues();
 
         //Add components and systems from features
-        contextDatas = contextDatas.Combine(featureDatas.Collect()).Select(AddFeature);
+        var features = featureDatas.Collect();
+        contextDatas = contextDatas.Combine(features).Select(AddFeatureToContext);
+        archetypeDatas = archetypeDatas.Combine(features).Select(AddFeatureToArchetype);
+
 
         var systems = systemDatas.Collect().Sort();
         var components = componentDatas.Collect().Sort();
         var contexts = contextDatas.Collect().Sort();
         var groups = groupDatas.Collect().Sort();
+
+        var extendedArchetypeDatas = archetypeDatas
+            .Combine(components)
+            .Combine(contexts)
+            .Select(CombineArchetypesWithContexts);
 
         var extendedComponentDatas = componentDatas
             .Combine(contexts)
@@ -86,13 +99,30 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         initContext.RegisterSourceOutput(featureDatas, GenerateFeature.GenerateFeatureOutput);
         initContext.RegisterSourceOutput(groupDatas, GenerateGroup.GenerateGroupOutput);
         initContext.RegisterSourceOutput(extendedGroupDatas, GenerateGroup.GenerateGroupExtensionsOutput);
+        initContext.RegisterSourceOutput(extendedArchetypeDatas, GenerateArchetype.GenerateArchetypeOutputs);
     }
 
-    static ContextData AddFeature((ContextData contextData, ImmutableArray<FeatureData> features) data, CancellationToken ct)
+    ExtendedArchetypeData CombineArchetypesWithContexts(((ArchetypeData archetypeData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
+    {
+        var archetypeData = data.Left.archetypeData;
+        var components = data.Left.componentDatas
+            .Where(component => archetypeData.Components.Any(x => x.TypeData == component.TypeData))
+            .ToImmutableArray();
+
+        var contexts = data.contextDatas
+            .Where(context => archetypeData.Components
+                .All(x => context.Components.Any(y => y == x.TypeData)
+                          || components.Any(y => y.Contexts.Any(z => z == context.TypeData))))
+            .ToImmutableArray();
+
+        return new ExtendedArchetypeData(archetypeData, contexts, components);
+    }
+
+    static ContextData AddFeatureToContext((ContextData contextData, ImmutableArray<FeatureData> features) data, CancellationToken ct)
     {
         var features = data.features
             .Where(featureData => data.contextData.Features.Contains(featureData.TypeData)
-                                  || featureData.ManuallyAddedContexts.Contains(data.contextData.TypeData))
+                                  || featureData.Contexts.Contains(data.contextData.TypeData))
             .ToList();
 
         foreach (var feature in features)
@@ -104,6 +134,19 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         data.contextData.Features = features.Select(x => x.TypeData).ToImmutableArray();
 
         return data.contextData;
+    }
+
+    static ArchetypeData AddFeatureToArchetype((ArchetypeData archetypeData, ImmutableArray<FeatureData> features) data, CancellationToken ct)
+    {
+        var components = data.features
+            .Where(featureData => data.archetypeData.Features.Contains(featureData.TypeData))
+            .SelectMany(feature => feature.Components
+                .Where(x => !data.archetypeData.Components.Any(y => y.TypeData == x))
+                .Select(x => new ArchetypeComponentData(x, false, ImmutableArray<string>.Empty))
+            );
+
+        data.archetypeData.Components = data.archetypeData.Components.AddRange(components).Sort();
+        return data.archetypeData;
     }
 
     static ExtendedComponentDataWithSystemsAndGroups CombineComponentsWithSystemsAndGroups((((ComponentData ComponentData, ContextData ContextData) data, ImmutableArray<SystemData> systemDatas) values, ImmutableArray<GroupData> groupDatas) arg1, CancellationToken arg2)
@@ -161,7 +204,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 
         var systems = systemDatas
             .Where(systemData => contextData.Systems.Contains(systemData.TypeData)
-                                 || systemData.ManuallyAddedContexts.Contains(contextData.TypeData))
+                                 || systemData.Contexts.Contains(contextData.TypeData))
             .ToImmutableArray();
 
         var groups = groupDatas

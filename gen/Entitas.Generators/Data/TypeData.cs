@@ -1,3 +1,4 @@
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
 namespace Entitas.Generators.Data;

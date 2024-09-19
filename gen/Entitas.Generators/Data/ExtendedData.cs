@@ -6,4 +6,4 @@ public record struct ExtendedComponentData(ComponentData ComponentData, Immutabl
 public record struct ExtendedComponentDataWithSystemsAndGroups(ComponentData ComponentData, ContextData ContextData, ImmutableArray<SystemData> SystemDatas, ImmutableArray<GroupData> GroupDatas);
 public record struct ExtendedGroupData(GroupData GroupData, ImmutableArray<ContextData> ContextDatas);
 public record struct ExtendedContextData(ContextData ContextData, ImmutableArray<ComponentData> ComponentDatas, ImmutableArray<SystemData> SystemDatas, ImmutableArray<GroupData> GroupDatas);
-// public record struct ExtendedSystemData(SystemData SystemData, ImmutableArray<ComponentData> ComponentDatas);
+public record struct ExtendedArchetypeData(ArchetypeData ArchetypeData, ImmutableArray<ContextData> ContextDatas, ImmutableArray<ComponentData> ComponentDatas);

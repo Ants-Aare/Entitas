@@ -7,16 +7,19 @@ using System.Threading;
 using Entitas.Generators.Common;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Entitas.Generators.StringConstants;
+using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
 public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>, IComparable<ContextData>, IComparable
 {
     public TypeData TypeData { get; private set; } = default;
-    public ImmutableArray<TypeData> Components = ImmutableArray<TypeData>.Empty;
-    public ImmutableArray<TypeData> Systems = ImmutableArray<TypeData>.Empty;
-    public ImmutableArray<TypeData> Features = ImmutableArray<TypeData>.Empty;
+
+    public ImmutableArray<TypeData> Components { get; set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Systems { get; set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Features { get; set; } = ImmutableArray<TypeData>.Empty;
+
+    public bool IsUnique { get; private set; } = false;
 
     readonly HashSet<TypeData> _components = new();
     readonly HashSet<TypeData> _systems = new();
@@ -52,6 +55,8 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
     {
         return attributeData switch
         {
+            { AttributeClass.Name: ContextAttributeName } => TryResolveContextAttribute(attributeData),
+            { AttributeClass.Name: UniqueAttributeName } => TryResolveUniqueAttribute(attributeData),
             { AttributeClass.Name: WithComponentsAttributeName } => TryResolveComponentsAttribute(attributeData),
             { AttributeClass.Name: WithSystemsAttributeName } => TryResolveSystemsAttribute(attributeData),
             { AttributeClass.Name: WithFeaturesAttributeName } => TryResolveFeaturesAttribute(attributeData),
@@ -59,24 +64,36 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
         };
     }
 
+    bool TryResolveContextAttribute(AttributeData attributeData)
+    {
+        IsUnique = (bool?)attributeData.ConstructorArguments[0].Value ?? false;
+        return true;
+    }
+
+    bool TryResolveUniqueAttribute(AttributeData _)
+    {
+        IsUnique = true;
+        return true;
+    }
+
     bool TryResolveComponentsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _components.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName)));
+        _components.UnionWith(values.Where(x => x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName)));
         return true;
     }
 
     bool TryResolveSystemsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _systems.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!)));
+        _systems.UnionWith(values.Where(x => x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!)));
         return true;
     }
 
     bool TryResolveFeaturesAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _features.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!)));
+        _features.UnionWith(values.Where(x => x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!)));
         return true;
     }
 
@@ -168,7 +185,7 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public int CompareTo(ContextData other)
     {
-        return string.Compare(FullName, other.FullName, StringComparison.Ordinal);
+        return string.Compare(Prefix, other.Prefix, StringComparison.Ordinal);
     }
 
     public int CompareTo(object? obj)

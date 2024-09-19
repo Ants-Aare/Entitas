@@ -6,7 +6,7 @@ using System.Threading;
 using Entitas.Generators.Common;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Entitas.Generators.StringConstants;
+using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
@@ -240,7 +240,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
     public int CompareTo(ComponentData other)
     {
         var isUniqueComparison = IsUnique.CompareTo(other.IsUnique);
-        return isUniqueComparison != 0 ? isUniqueComparison : string.Compare(FullName, other.FullName, StringComparison.Ordinal);
+        return isUniqueComparison != 0 ? isUniqueComparison : string.Compare(Prefix, other.Prefix, StringComparison.Ordinal);
     }
 
     public int CompareTo(object? obj)
@@ -249,11 +249,6 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         return obj is ComponentData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(ComponentData)}");
     }
 }
-
-// public readonly struct MethodData
-// {
-//     public readonly string Me
-// }
 
 public enum CleanupMode
 {

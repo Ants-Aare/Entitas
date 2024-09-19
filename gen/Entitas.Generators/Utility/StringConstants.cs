@@ -1,4 +1,4 @@
-namespace Entitas.Generators;
+namespace Entitas.Generators.Utility;
 
 public static class StringConstants
 {
@@ -27,6 +27,9 @@ public static class StringConstants
     public const string FeatureName = "Feature";
     public const string FeatureAttributeName = "FeatureAttribute";
 
+    public const string ArchetypeName = "Archetype";
+    public const string ArchetypeAttributeName = "ArchetypeAttribute";
+
 
 
     //Component Attributes
@@ -45,6 +48,7 @@ public static class StringConstants
     public const string AddToContextAttributeName = "AddToContextAttribute";
 
     public const string WithComponentsAttributeName = "WithComponentsAttribute";
+    public const string WithComponentAttributeName = "WithComponentAttribute";
 
     public const string WithSystemsAttributeName = "WithSystemsAttribute";
 

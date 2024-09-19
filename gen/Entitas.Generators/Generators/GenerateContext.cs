@@ -6,7 +6,7 @@ using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public sealed class GenerateContext
 {
@@ -22,8 +22,10 @@ public sealed class GenerateContext
             using (new NamespaceBuilder(stringBuilder, contextData.Namespace))
             {
                 stringBuilder.AppendLine(GetContent(data));
-                if(data.GroupDatas.Length != 0)
-                    stringBuilder.AppendLine(GetGroupContent(data));
+                if (data.ContextData.IsUnique)
+                    stringBuilder.AppendLine(GetUniqueContent(data));
+                else
+                    stringBuilder.AppendLine(GetInstancesContent(data));
                 stringBuilder.Append('}');
             }
 
@@ -37,18 +39,29 @@ public sealed class GenerateContext
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(contextData.Namespace, contextData.Name), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(contextData.Namespace, contextData.Name), stringBuilder.ToString());
     }
 
-    static string GetGroupContent(ExtendedContextData data)
+    static string GetUniqueContent(ExtendedContextData data)
     {
-        // var contextData = data.ContextData;
-        // var groupDatas = data.GroupDatas;
-
         return $$"""
 
+                 static {{data.ContextData.Name}} Instance;
+                 public static {{data.ContextData.Name}} GetInstance() => Instance;
+                 [System.Obsolete]
+                 public static {{data.ContextData.Name}} GetInstance(int index) => Instance;
                  """;
     }
+    static string GetInstancesContent(ExtendedContextData data)
+    {
+        return $$"""
+
+                 static System.Collections.Generic.List<{{data.ContextData.Name}}> Instances = new();
+                 public static {{data.ContextData.Name}} GetInstance() => Instances.Count > 0 ? Instances[0] : null;
+                 public static {{data.ContextData.Name}} GetInstance(int index) => index < Instances.Count ? Instances[index] : null;
+                 """;
+    }
+
 
     static string GetContent(ExtendedContextData data)
     {
@@ -106,10 +119,11 @@ public sealed class GenerateContext
                      }
 
                      public static {{contextData.Name}} CreateContext({{constructorSignature}})
-                     {
+                     {{{(contextData.IsUnique ? "\n\t\tif (Instance != null) return Instance;" : String.Empty)}}
                          var context = new {{contextData.Name}}();
                          {{constructorBody}}
                          {{initializeSystems}}
+                         {{(contextData.IsUnique ? "Instance = context;" : "Instances.Add(context);")}}
                          return context;
                      }
 
@@ -125,6 +139,7 @@ public sealed class GenerateContext
                          {{destroyUnique}}
                          IsEnabled = false;
                          ContextPool.Push(this);
+                         {{(contextData.IsUnique ? "Instance = null;" : "Instances.Remove(this);")}}
                      }
 
                      public {{contextData.Prefix}}Entity CreateEntity()

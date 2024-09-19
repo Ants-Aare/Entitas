@@ -3,9 +3,10 @@ using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public sealed class GenerateComponent
 {
@@ -33,7 +34,7 @@ public sealed class GenerateComponent
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(componentData.Namespace, componentData.Name), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(componentData.Namespace, componentData.Name), stringBuilder.ToString());
     }
 
     static string GetContent(ComponentData componentData)

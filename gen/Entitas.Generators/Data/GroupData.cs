@@ -5,9 +5,10 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Entitas.Generators.Common;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Entitas.Generators.StringConstants;
+using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
@@ -161,7 +162,7 @@ public struct GroupData() : IClassDeclarationResolver, IAttributeResolver, IFina
 
     public int CompareTo(GroupData other)
     {
-        return string.Compare(FullName, other.FullName, StringComparison.Ordinal);
+        return string.Compare(Name, other.Name, StringComparison.Ordinal);
     }
 
     public int CompareTo(object? obj)

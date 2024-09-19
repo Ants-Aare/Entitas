@@ -6,7 +6,7 @@ using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public sealed class GenerateEntity
 {
@@ -28,7 +28,7 @@ public sealed class GenerateEntity
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity"), stringBuilder.ToString());
     }
 
     static string GetContent(ExtendedContextData data)

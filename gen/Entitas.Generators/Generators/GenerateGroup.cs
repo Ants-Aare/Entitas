@@ -3,9 +3,10 @@ using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public static class GenerateGroup
 {
@@ -32,7 +33,7 @@ public static class GenerateGroup
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(groupData.Namespace, groupData.Name), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(groupData.Namespace, groupData.Name), stringBuilder.ToString());
     }
 
     static string GetContent(GroupData groupData)
@@ -67,7 +68,7 @@ public static class GenerateGroup
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(data.GroupData.Namespace, $"{data.GroupData.Name}Extensions"), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(data.GroupData.Namespace, $"{data.GroupData.Name}Extensions"), stringBuilder.ToString());
     }
 
     static string GetContent(ExtendedGroupData data)

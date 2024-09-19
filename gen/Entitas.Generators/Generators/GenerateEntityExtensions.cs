@@ -7,7 +7,7 @@ using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public sealed class GenerateEntityExtensions
 {
@@ -34,7 +34,7 @@ public sealed class GenerateEntityExtensions
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(contextData.Namespace, $"{contextData.Prefix}Entity{componentData.Prefix}Extensions"), stringBuilder.ToString());
     }
 
     static string GetClassContent(ContextData contextData, ComponentData componentData)

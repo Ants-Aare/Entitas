@@ -7,14 +7,14 @@ using System.Threading;
 using Entitas.Generators.Common;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Entitas.Generators.StringConstants;
+using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
 public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<FeatureData>, IEquatable<FeatureData>
 {
     public TypeData TypeData { get; private set; } = default;
-    public ImmutableArray<TypeData> ManuallyAddedContexts { get; private set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<TypeData> Contexts { get; private set; } = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> Components = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> Systems = ImmutableArray<TypeData>.Empty;
 
@@ -74,7 +74,7 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        ManuallyAddedContexts = typedConstants.Where(x=> x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
+        Contexts = typedConstants.Where(x=> x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 
@@ -132,10 +132,10 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
             else
                 stringBuilder.AppendLine("This Feature has no Systems declared on it.");
 
-            if (ManuallyAddedContexts.Length > 0)
+            if (Contexts.Length > 0)
             {
-                stringBuilder.AppendLine($"   {nameof(ManuallyAddedContexts)}:");
-                foreach (var contexts in ManuallyAddedContexts)
+                stringBuilder.AppendLine($"   {nameof(Contexts)}:");
+                foreach (var contexts in Contexts)
                 {
                     stringBuilder.AppendLine($"      {contexts}");
                 }
@@ -151,7 +151,7 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public bool Equals(FeatureData other)
     {
-        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && FullName == other.FullName && ManuallyAddedContexts.Equals(other.ManuallyAddedContexts);
+        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && FullName == other.FullName && Contexts.Equals(other.Contexts);
     }
 
     public override bool Equals(object? obj)
@@ -166,7 +166,7 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
             var hashCode = Components.GetHashCode();
             hashCode = (hashCode * 397) ^ Systems.GetHashCode();
             hashCode = (hashCode * 397) ^ FullName.GetHashCode();
-            hashCode = (hashCode * 397) ^ ManuallyAddedContexts.GetHashCode();
+            hashCode = (hashCode * 397) ^ Contexts.GetHashCode();
             return hashCode;
         }
     }

@@ -6,7 +6,7 @@ using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public sealed class GenerateSystem
 {
@@ -56,7 +56,7 @@ public sealed class GenerateSystem
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(systemData.Namespace, systemData.Name), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(systemData.Namespace, systemData.Name), stringBuilder.ToString());
     }
 
     static string GetClassContent(SystemData systemData)
@@ -94,10 +94,18 @@ public sealed class GenerateSystem
                  public sealed partial class {{systemData.Name}} : {{interfaces}}
                  {
                      static readonly System.Collections.Generic.HashSet<{{systemData.Name}}> Instances = new();
+                     public bool IsEnabled = false;
+                     public void Enable()
+                     {{{(systemData.IsReactiveSystem ? "\n\t\t_collector.Clear();": String.Empty)}}
+                        IsEnabled = true;
+                        Instances.Add(this);
+                     }
 
-                     public void Enable() => Instances.Add(this);
-
-                     public void Disable() => Instances.Remove(this);
+                     public void Disable()
+                     {{{(systemData.IsReactiveSystem ? "\n\t\t_collector.Clear();": String.Empty)}}
+                        IsEnabled = false;
+                        Instances.Remove(this);
+                     }
 
                      ~{{systemData.Name}}()=> Instances.Remove(this);
 
@@ -110,9 +118,9 @@ public sealed class GenerateSystem
     {
         return $$"""
                      [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-                     readonly System.Collections.Generic.HashSet<{{entityType}}> _collector = new ();
+                     readonly System.Collections.Generic.List<{{entityType}}> _collector = new ();
                      [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-                     readonly System.Collections.Generic.List<{{entityType}}> _buffer = new ();
+                     readonly System.Collections.Generic.HashSet<{{entityType}}> _buffer = new ();
 
                      public static void UpdateReactiveSystems()
                      {
@@ -135,7 +143,7 @@ public sealed class GenerateSystem
 
                          try
                          {
-                             Execute(_buffer);
+                             Execute(_buffer, _buffer.Count);
                          }
                          finally
                          {
@@ -146,7 +154,14 @@ public sealed class GenerateSystem
                      [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      public void OnEntityTriggered({{entityType}} entity)
                      {
-                         _collector.Add(entity);
+                         if(IsEnabled)
+                             _collector.Add(entity);
+                     }
+                     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+                     public void OnEntitiesTriggered(System.Collections.Generic.IEnumerable<{{entityType}}> entities)
+                     {
+                         if(IsEnabled)
+                             _collector.AddRange(entities);
                      }
                  """;
     }

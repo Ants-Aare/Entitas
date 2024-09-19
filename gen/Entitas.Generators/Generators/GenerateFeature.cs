@@ -3,9 +3,10 @@ using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public static class GenerateFeature
 {
@@ -34,6 +35,6 @@ public static class GenerateFeature
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(featureData.Namespace, featureData.Name), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(featureData.Namespace, featureData.Name), stringBuilder.ToString());
     }
 }

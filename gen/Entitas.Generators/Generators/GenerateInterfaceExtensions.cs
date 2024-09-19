@@ -7,7 +7,7 @@ using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public sealed class GenerateInterfaceExtensions
 {
@@ -49,7 +49,7 @@ public sealed class GenerateInterfaceExtensions
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(componentData.Namespace, $"I{componentData.Prefix}EntityExtensions"), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(componentData.Namespace, $"I{componentData.Prefix}EntityExtensions"), stringBuilder.ToString());
     }
 
 

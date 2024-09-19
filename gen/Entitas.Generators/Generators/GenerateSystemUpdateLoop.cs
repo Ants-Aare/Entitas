@@ -5,9 +5,10 @@ using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
 using Entitas.Generators.Data;
+using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
 
-namespace Entitas.Generators;
+namespace Entitas.Generators.Generators;
 
 public static class GenerateSystemUpdateLoop
 {
@@ -42,7 +43,7 @@ public static class GenerateSystemUpdateLoop
             stringBuilder.AppendLine($"/*\nException occured while generating:\n{e}\n*/");
         }
 
-        context.AddSource(Templates.FileNameHint(targetNamespace, "AddSystemsToUpdateLoop"), stringBuilder.ToString());
+        context.AddSource(StringUtility.FileNameHint(targetNamespace, "AddSystemsToUpdateLoop"), stringBuilder.ToString());
     }
 
     static string GetContent(ImmutableArray<SystemData> systemDatas)
