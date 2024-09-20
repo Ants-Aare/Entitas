@@ -26,7 +26,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     public bool IsReactiveSystem { get; private set; } = false;
     public SystemExecution ReactiveExecution { get; private set; } = SystemExecution.Manual;
     public int ReactiveOrder { get; private set; } = 0;
-    public ImmutableArray<(TypeData component, EventType eventType)> TriggeredBy { get; private set; } = ImmutableArray<(TypeData, EventType)>.Empty;
+    public ImmutableArray<(TypeData component, ComponentEvent eventType)> TriggeredBy { get; private set; } = ImmutableArray<(TypeData, ComponentEvent)>.Empty;
     public ImmutableArray<TypeData> EntityIs { get; private set; } = ImmutableArray<TypeData>.Empty;
 
     public bool IsExecuteSystem { get; private set; } = false;
@@ -44,7 +44,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     public string FullName => TypeData.FullName;
     public string Name => TypeData.Name;
 
-    public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
+    public static bool SyntaxFilter(SyntaxNode node, CancellationToken _)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
            && classDeclaration.AttributeLists
                .SelectMany(x => x.Attributes)
@@ -92,7 +92,7 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
     bool TryResolveTriggeredByAttribute(AttributeData attributeData)
     {
         var componentType = TypeData.Create((INamedTypeSymbol)attributeData.ConstructorArguments[0].Value!, ComponentName);
-        var eventType = (EventType)(attributeData.ConstructorArguments[1].Value ?? EventType.Added);
+        var eventType = (ComponentEvent)(attributeData.ConstructorArguments[1].Value ?? ComponentEvent.Added);
         TriggeredBy = TriggeredBy.Add((componentType, eventType));
         return true;
     }

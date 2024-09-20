@@ -24,7 +24,7 @@ public struct ArchetypeData() : IClassDeclarationResolver, IAttributeResolver, I
     readonly Dictionary<string, ArchetypeComponentData> _components = new();
     public string Name => TypeData.Name;
 
-    public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
+    public static bool SyntaxFilter(SyntaxNode node, CancellationToken _)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
            && classDeclaration.AttributeLists
                .SelectMany(x => x.Attributes)

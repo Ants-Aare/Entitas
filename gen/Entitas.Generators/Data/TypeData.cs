@@ -9,6 +9,7 @@ public record struct TypeData(string? Namespace, string FullName, string Name, s
     public readonly bool Equals(TypeData other) => string.Equals(FullName, other.FullName);
 
     public readonly override int GetHashCode() => FullName.GetHashCode();
+    public override string ToString() => FullName;
 
     public static TypeData Create(INamedTypeSymbol namedTypeSymbol, string suffix)
     {

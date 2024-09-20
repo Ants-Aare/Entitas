@@ -71,19 +71,22 @@ public sealed class GenerateContextExtensions
             var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.TypeData);
             switch (eventType)
             {
-                case EventType.Added:
+                case ComponentEvent.Added:
                     onAddedEvents.AppendLine(systemCall);
                     onSetEvents.AppendLine(systemCall);
                     onChangedEvents.AppendLine(systemCall);
                     break;
-                case EventType.Removed:
+                case ComponentEvent.Removed:
                     onRemovedEvents.AppendLine(systemCall);
                     break;
-                case EventType.AddedOrRemoved:
+                case ComponentEvent.AddedOrRemoved:
                     onAddedEvents.AppendLine(systemCall);
                     onSetEvents.AppendLine(systemCall);
                     onChangedEvents.AppendLine(systemCall);
                     onRemovedEvents.AppendLine(systemCall);
+                    break;
+                case ComponentEvent.Updated:
+                    onChangedEvents.AppendLine(systemCall);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

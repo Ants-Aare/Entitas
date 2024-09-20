@@ -28,7 +28,7 @@ public struct GroupData() : IClassDeclarationResolver, IAttributeResolver, IFina
     public string Prefix => TypeData.Prefix!;
     public IEnumerable<TypeData> GetAllTypes => AnyOf.Concat(AllOf).Concat(NoneOf);
 
-    public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
+    public static bool SyntaxFilter(SyntaxNode node, CancellationToken _)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
            && classDeclaration.AttributeLists
                .SelectMany(x => x.Attributes)

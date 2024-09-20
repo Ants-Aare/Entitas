@@ -30,7 +30,8 @@ public static class StringConstants
     public const string ArchetypeName = "Archetype";
     public const string ArchetypeAttributeName = "ArchetypeAttribute";
 
-
+    public const string ListenToName = "ListenTo";
+    public const string ListenToAttributeName = "ListenToAttribute";
 
     //Component Attributes
     // public const string IndexedName = "Indexed";

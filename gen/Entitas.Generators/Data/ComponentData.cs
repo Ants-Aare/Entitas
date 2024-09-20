@@ -14,7 +14,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
 {
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
-    public ImmutableArray<ComponentEventData> Events { get; private set; } = ImmutableArray<ComponentEventData>.Empty;
+    public ImmutableArray<EventData> Events = ImmutableArray<EventData>.Empty;
     public ImmutableArray<TypeData> Contexts = ImmutableArray<TypeData>.Empty;
 
     public bool IsUnique { get; private set; } = false;
@@ -31,8 +31,9 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
     public string Name => TypeData.Name;
     public string FullPrefix => TypeData.FullPrefix!;
     public string Prefix => TypeData.Prefix!;
+    public bool HasEvents => Events.Length != 0;
 
-    public static bool SyntaxFilter(SyntaxNode node, CancellationToken ct)
+    public static bool SyntaxFilter(SyntaxNode node, CancellationToken _)
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } classDeclaration
            && classDeclaration.AttributeLists
                .SelectMany(x => x.Attributes)
@@ -58,7 +59,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         {
             { AttributeClass.Name: UniqueAttributeName } => TryResolveUniqueAttribute(attributeData),
             { AttributeClass.Name: ComponentAttributeName } => TryResolveComponentAttribute(attributeData),
-            { AttributeClass.Name: EventAttributeName } => TryResolveEventAttribute(attributeData),
+            // { AttributeClass.Name: EventAttributeName } => TryResolveEventAttribute(attributeData),
             { AttributeClass.Name: CleanupAttributeName } => TryResolveCleanupAttribute(attributeData),
             { AttributeClass.Name: AddToContextAttributeName } => TryResolveAddToContextAttribute(attributeData),
             { AttributeClass.Name: IndexedAttributeName } => TryResolveIndexedAttribute(attributeData),
@@ -96,19 +97,19 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         return true;
     }
 
-    bool TryResolveEventAttribute(AttributeData attributeData)
-    {
-        var eventData = new ComponentEventData
-        {
-            EventTarget = (EventTarget)(attributeData.ConstructorArguments[0].Value ?? EventTarget.Any),
-            EventType = (EventType)(attributeData.ConstructorArguments[1].Value ?? EventType.Added),
-            Order = (int?)attributeData.ConstructorArguments[2].Value ?? 0
-        };
-
-        if (!Events.Contains(eventData))
-            Events = Events.Add(eventData);
-        return true;
-    }
+    // bool TryResolveEventAttribute(AttributeData attributeData)
+    // {
+    //     var eventData = new ComponentEventData
+    //     {
+    //         EventTarget = (EventTarget)(attributeData.ConstructorArguments[0].Value ?? EventTarget.Any),
+    //         EventType = (EventType)(attributeData.ConstructorArguments[1].Value ?? EventType.Added),
+    //         Order = (int?)attributeData.ConstructorArguments[2].Value ?? 0
+    //     };
+    //
+    //     if (!Events.Contains(eventData))
+    //         Events = Events.Add(eventData);
+    //     return true;
+    // }
 
     bool TryResolveUniqueAttribute(AttributeData _)
     {
@@ -179,14 +180,14 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
                 stringBuilder.AppendLine($"      This Component doesn't have any fields.");
             }
 
-            if (Events.Length > 0)
-            {
-                stringBuilder.AppendLine($"   {nameof(Events)}:");
-                foreach (var eventData in Events)
-                {
-                    stringBuilder.AppendLine($"      {eventData.ToString()}");
-                }
-            }
+            // if (Events.Length > 0)
+            // {
+            //     stringBuilder.AppendLine($"   {nameof(Events)}:");
+            //     foreach (var eventData in Events)
+            //     {
+            //         stringBuilder.AppendLine($"      {eventData.ToString()}");
+            //     }
+            // }
 
             if (Contexts.Length > 0)
             {
@@ -210,7 +211,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
 
     public bool Equals(ComponentData other)
     {
-        return Contexts.Equals(other.Contexts) && TypeData.Equals(other.TypeData) && Fields.Equals(other.Fields) && Events.Equals(other.Events) && IsUnique == other.IsUnique && IndexType == other.IndexType && IndexMaxSize == other.IndexMaxSize && IsCleanup == other.IsCleanup && CleanupMode == other.CleanupMode && CleanupExecution == other.CleanupExecution && CleanupOrder == other.CleanupOrder;
+        return Contexts.Equals(other.Contexts) && TypeData.Equals(other.TypeData) && Fields.Equals(other.Fields) && IsUnique == other.IsUnique && IndexType == other.IndexType && IndexMaxSize == other.IndexMaxSize && IsCleanup == other.IsCleanup && CleanupMode == other.CleanupMode && CleanupExecution == other.CleanupExecution && CleanupOrder == other.CleanupOrder;
     }
 
     public override bool Equals(object? obj)
@@ -225,7 +226,6 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
             var hashCode = TypeData.GetHashCode();
             hashCode = (hashCode * 397) ^ Fields.GetHashCode();
             hashCode = (hashCode * 397) ^ Contexts.GetHashCode();
-            hashCode = (hashCode * 397) ^ Events.GetHashCode();
             hashCode = (hashCode * 397) ^ IsUnique.GetHashCode();
             hashCode = (hashCode * 397) ^ (int)IndexType;
             hashCode = (hashCode * 397) ^ IndexMaxSize;
@@ -256,18 +256,18 @@ public enum CleanupMode
     DestroyEntity = 1,
 }
 
-public enum EventTarget
-{
-    Any = 0,
-    Self = 1,
-}
+// public enum EventTarget
+// {
+//     Any = 0,
+//     Self = 1,
+// }
 
-public enum EventType
-{
-    Added = 0,
-    Removed = 1,
-    AddedOrRemoved = 2,
-}
+// public enum EventType
+// {
+//     Added = 0,
+//     Removed = 1,
+//     AddedOrRemoved = 2,
+// }
 
 public enum EntityIndexType
 {

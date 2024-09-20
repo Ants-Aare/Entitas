@@ -73,19 +73,22 @@ public sealed class GenerateEntityExtensions
             var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.TypeData);
             switch (eventType)
             {
-                case EventType.Added:
+                case ComponentEvent.Added:
                     onAddedEvents.AppendLine(systemCall);
                     onSetEvents.AppendLine(systemCall);
                     onChangedEvents.AppendLine(systemCall);
                     break;
-                case EventType.Removed:
+                case ComponentEvent.Removed:
                     onRemovedEvents.AppendLine(systemCall);
                     break;
-                case EventType.AddedOrRemoved:
+                case ComponentEvent.AddedOrRemoved:
                     onAddedEvents.AppendLine(systemCall);
                     onSetEvents.AppendLine(systemCall);
                     onChangedEvents.AppendLine(systemCall);
                     onRemovedEvents.AppendLine(systemCall);
+                    break;
+                case ComponentEvent.Updated:
+                    onChangedEvents.AppendLine(systemCall);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -99,15 +102,16 @@ public sealed class GenerateEntityExtensions
             if (hasMultipleConditions)
             {
                 var conditions = new List<string>();
-                if(groupData.NoneOf.Length > 0)
-                    conditions.Add(string.Join(" && ", groupData.NoneOf.Select(x=> $"{x.Name} == null")));
-                if(groupData.AnyOf.Length > 0)
-                    conditions.Add($"({string.Join(" || ", groupData.AnyOf.Select(x=> $"{x.Name} != null"))})");
-                if(groupData.AllOf.Length > 0)
-                    conditions.Add(string.Join(" && ", groupData.AllOf.Select(x=> $"{x.Name} != null")));
+                if (groupData.NoneOf.Length > 0)
+                    conditions.Add(string.Join(" && ", groupData.NoneOf.Select(x => $"{x.Name} == null")));
+                if (groupData.AnyOf.Length > 0)
+                    conditions.Add($"({string.Join(" || ", groupData.AnyOf.Select(x => $"{x.Name} != null"))})");
+                if (groupData.AllOf.Length > 0)
+                    conditions.Add(string.Join(" && ", groupData.AllOf.Select(x => $"{x.Name} != null")));
 
                 condition = string.Join(" && ", conditions);
             }
+
             var addCall = $"Context.{groupData.ValidLowerName}Dictionary.Add(Id, this);";
             var removeCall = $"Context.{groupData.ValidLowerName}Dictionary.Remove(Id);";
 

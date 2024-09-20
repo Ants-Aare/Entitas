@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -13,6 +14,12 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext initContext)
     {
+        var listenerDatas = initContext.SyntaxProvider
+            .CreateSyntaxProvider(ListenerData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ListenerData>)
+            .RemoveEmptyValues();
+        var listenerEvents = listenerDatas.SelectMany((x, _) => x.Events)
+            .RemoveDuplicates();
+
         var archetypeDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(ArchetypeData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ArchetypeData>)
             .RemoveEmptyValues();
@@ -39,6 +46,11 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         var contextDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(ContextData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ContextData>)
             .RemoveEmptyValues();
+
+        //Add events
+
+        componentDatas.Combine(listenerEvents.WithComparer(EventData.TypeAndEventComparer).Collect())
+            .Select(AddEventsToComponent)
 
         //Add components and systems from features
         var features = featureDatas.Collect();
@@ -96,10 +108,24 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         initContext.RegisterSourceOutput(extendedContextDatas, GenerateEntity.GenerateEntityOutput);
         initContext.RegisterSourceOutput(extendedContextDatas, GenerateContext.GenerateContextOutput);
 
+        initContext.RegisterSourceOutput(listenerDatas, GenerateListener.GenerateListenerOutput);
         initContext.RegisterSourceOutput(featureDatas, GenerateFeature.GenerateFeatureOutput);
         initContext.RegisterSourceOutput(groupDatas, GenerateGroup.GenerateGroupOutput);
         initContext.RegisterSourceOutput(extendedGroupDatas, GenerateGroup.GenerateGroupExtensionsOutput);
         initContext.RegisterSourceOutput(extendedArchetypeDatas, GenerateArchetype.GenerateArchetypeOutputs);
+    }
+
+    ComponentData AddEventsToComponent((ComponentData componentData, ImmutableArray<EventData> eventDatas) data, CancellationToken arg2)
+    {
+        var componentData = data.componentData;
+        var events = new List<EventData>();
+        foreach (var eventData in data.eventDatas.Where(x => x.Type == componentData.TypeData))
+        {
+            if(events.Contains())
+            events.Add();
+        }
+        componentData.Events = .ToImmutableArray();
+        return componentData;
     }
 
     ExtendedArchetypeData CombineArchetypesWithContexts(((ArchetypeData archetypeData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
