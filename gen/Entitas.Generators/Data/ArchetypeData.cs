@@ -11,14 +11,12 @@ using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ArchetypeData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ArchetypeData>
+public struct ArchetypeData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ArchetypeData>, IEquatable<ArchetypeData>
 {
     public TypeData TypeData { get; private set; } = default;
 
-    public ImmutableArray<ArchetypeComponentData> Components = ImmutableArray<ArchetypeComponentData>.Empty;
-
-    // public ImmutableArray<TypeData> Contexts = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> Features { get; private set; } = ImmutableArray<TypeData>.Empty;
+    public ImmutableArray<ArchetypeComponentData> Components = ImmutableArray<ArchetypeComponentData>.Empty;
 
     readonly HashSet<TypeData> _features = new();
     readonly Dictionary<string, ArchetypeComponentData> _components = new();
@@ -157,10 +155,40 @@ public struct ArchetypeData() : IClassDeclarationResolver, IAttributeResolver, I
 
         return stringBuilder.ToString();
     }
+
+    public bool Equals(ArchetypeData other)
+    {
+        return TypeData.Equals(other.TypeData)
+               && Components.SequenceEqual(other.Components)
+               && Features.SequenceEqual(other.Features);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is ArchetypeData other && Equals(other);
+    }
+
+    public override int GetHashCode() => TypeData.GetHashCode();
 }
 
 public record struct ArchetypeComponentData(TypeData TypeData, bool HasDefaultValue, ImmutableArray<string> DefaultValues) : IComparable<ArchetypeComponentData>, IComparable
 {
+    public readonly bool Equals(ArchetypeComponentData other)
+    {
+        return TypeData.Equals(other.TypeData) && HasDefaultValue == other.HasDefaultValue && DefaultValues.SequenceEqual(other.DefaultValues);
+    }
+
+    public readonly override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = TypeData.GetHashCode();
+            hashCode = (hashCode * 397) ^ HasDefaultValue.GetHashCode();
+            hashCode = (hashCode * 397) ^ DefaultValues.SequenceGetHashCode();
+            return hashCode;
+        }
+    }
+
     public int CompareTo(ArchetypeComponentData other)
     {
         var hasDefault = HasDefaultValue.CompareTo(other.HasDefaultValue);

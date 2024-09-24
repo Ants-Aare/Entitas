@@ -60,21 +60,21 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
     bool TryResolveComponentsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _components.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName)));
+        _components.UnionWith(values.Where(x => x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName)));
         return true;
     }
 
     bool TryResolveSystemsAttribute(AttributeData attributeData)
     {
         var values = attributeData.ConstructorArguments[0].Values;
-        _systems.UnionWith(values.Where(x=> x.Value is INamedTypeSymbol).Select(x=> TypeData.Create((INamedTypeSymbol)x.Value!)));
+        _systems.UnionWith(values.Where(x => x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!)));
         return true;
     }
 
     bool TryResolveAddToContextAttribute(AttributeData attributeData)
     {
         var typedConstants = attributeData.ConstructorArguments[0].Values;
-        Contexts = typedConstants.Where(x=> x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
+        Contexts = typedConstants.Where(x => x.Value is INamedTypeSymbol).Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ContextName)).ToImmutableArray();
         return true;
     }
 
@@ -151,7 +151,10 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public bool Equals(FeatureData other)
     {
-        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && FullName == other.FullName && Contexts.Equals(other.Contexts);
+        return TypeData.Equals(other.TypeData)
+               && Components.SequenceEqual(other.Components)
+               && Systems.SequenceEqual(other.Systems)
+               && Contexts.SequenceEqual(other.Contexts);
     }
 
     public override bool Equals(object? obj)
@@ -159,15 +162,5 @@ public struct FeatureData() : IClassDeclarationResolver, IAttributeResolver, IFi
         return obj is FeatureData other && Equals(other);
     }
 
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            var hashCode = Components.GetHashCode();
-            hashCode = (hashCode * 397) ^ Systems.GetHashCode();
-            hashCode = (hashCode * 397) ^ FullName.GetHashCode();
-            hashCode = (hashCode * 397) ^ Contexts.GetHashCode();
-            return hashCode;
-        }
-    }
+    public override int GetHashCode() => TypeData.GetHashCode();
 }

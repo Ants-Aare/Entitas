@@ -58,6 +58,7 @@ public sealed class GenerateContextExtensions
 
         var methodSignature = componentData.GetMethodSignature();
         var methodArguments = componentData.GetMethodArguments();
+        var methodArgumentsWithLeadingComma = componentData.GetMethodArgumentsLeadingComma();
         var equalityComparer = componentData.GetEqualityComparer();
 
         var onAddedEvents = new StringBuilder();
@@ -69,28 +70,35 @@ public sealed class GenerateContextExtensions
         {
             var systemCall = $"{systemData.ValidLowerName}.OnEntityTriggered(contextEntity);";
             var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.TypeData);
-            switch (eventType)
+            if (eventType.HasFlagFast(ComponentEvent.Added))
+                onAddedEvents.AppendLine(systemCall);
+            if (eventType.HasFlagFast(ComponentEvent.Changed))
+                onChangedEvents.AppendLine(systemCall);
+            if (eventType.HasFlagFast(ComponentEvent.Set))
+                onSetEvents.AppendLine(systemCall);
+            if (eventType.HasFlagFast(ComponentEvent.Removed))
+                onRemovedEvents.AppendLine(systemCall);
+        }
+
+        foreach (var eventData in componentData.Events)
+        {
+            var arguments = eventData.ComponentEvent == ComponentEvent.Removed ? string.Empty : methodArgumentsWithLeadingComma;
+            var eventCall = eventData switch
             {
-                case ComponentEvent.Added:
-                    onAddedEvents.AppendLine(systemCall);
-                    onSetEvents.AppendLine(systemCall);
-                    onChangedEvents.AppendLine(systemCall);
-                    break;
-                case ComponentEvent.Removed:
-                    onRemovedEvents.AppendLine(systemCall);
-                    break;
-                case ComponentEvent.AddedOrRemoved:
-                    onAddedEvents.AppendLine(systemCall);
-                    onSetEvents.AppendLine(systemCall);
-                    onChangedEvents.AppendLine(systemCall);
-                    onRemovedEvents.AppendLine(systemCall);
-                    break;
-                case ComponentEvent.Updated:
-                    onChangedEvents.AppendLine(systemCall);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+                { Execution: EventExecution.Instant, AllowMultipleListeners: true } => $"foreach (var value in _{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { Execution: EventExecution.Instant, AllowMultipleListeners: false } => $"_{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { AllowMultipleListeners: true } => $"foreach (var value in _{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.Changed = true;",
+                { AllowMultipleListeners: false } => $"_{componentData.Prefix}{eventData.ComponentEvent}Listener?.Changed = true;",
+            };
+
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Added))
+                onAddedEvents.AppendLine(eventCall);
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Changed))
+                onChangedEvents.AppendLine(eventCall);
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Set))
+                onSetEvents.AppendLine(eventCall);
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Removed))
+                onRemovedEvents.AppendLine(eventCall);
         }
 
         if (componentData.IsCleanup)
@@ -116,18 +124,26 @@ public sealed class GenerateContextExtensions
                      if (this.{{componentData.Name}} == null)
                      {
                          this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+
+                         //OnAddedEvents (Method was called and a new Component was added):
                          {{onAddedEvents}}
+
                          return this;
                      }
 
                      if (Has{{componentData.Prefix}}(){{equalityComparer}})
                      {
-                        {{onSetEvents}}
+                         //OnSetEvents (Method was called but component values are the same as before):
+                         {{onSetEvents}}
+
                          return this;
                      }
                      var previousComponent = this.{{componentData.Name}};
                      this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
+
+                     //OnChangedEvents: (Method was called and component Values changed):
                      {{onChangedEvents}}
+
                      {{componentData.FullName}}.DestroyComponent(previousComponent);
                      return this;
                  }
@@ -146,7 +162,10 @@ public sealed class GenerateContextExtensions
 
                      var previousComponent = this.{{componentData.Name}};
                      this.{{componentData.Name}} = null;
+
+                     //OnRemovedEvents (Component was removed):
                      {{onRemovedEvents}}
+
                      {{componentData.FullName}}.DestroyComponent(previousComponent);
                      return this;
                  }

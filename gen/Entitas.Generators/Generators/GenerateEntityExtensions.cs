@@ -53,7 +53,8 @@ public sealed class GenerateEntityExtensions
         var methodArguments = componentData.GetMethodArguments();
         var equalityComparer = componentData.GetEqualityComparer();
         var methodSignatureWithLeadingComma = componentData.GetMethodSignatureLeadingComma();
-        var componentValues = componentData.Fields.Length == 0 ? string.Empty : componentData.GetVariableMethodArguments();
+        var methodArgumentsWithLeadingComma = componentData.GetMethodArgumentsLeadingComma();
+        var componentValues = componentData.GetVariableMethodArguments();
 
         var onAddedEvents = new StringBuilder();
         var onSetEvents = new StringBuilder();
@@ -69,30 +70,17 @@ public sealed class GenerateEntityExtensions
 
         foreach (var systemData in data.SystemDatas)
         {
-            var systemCall = $"Context.{systemData.ValidLowerName}.OnEntityTriggered(this);";
+            var systemCall = $"\t\tContext.{systemData.ValidLowerName}.OnEntityTriggered(this);";
             var (_, eventType) = systemData.TriggeredBy.FirstOrDefault(x => x.component == componentData.TypeData);
-            switch (eventType)
-            {
-                case ComponentEvent.Added:
-                    onAddedEvents.AppendLine(systemCall);
-                    onSetEvents.AppendLine(systemCall);
-                    onChangedEvents.AppendLine(systemCall);
-                    break;
-                case ComponentEvent.Removed:
-                    onRemovedEvents.AppendLine(systemCall);
-                    break;
-                case ComponentEvent.AddedOrRemoved:
-                    onAddedEvents.AppendLine(systemCall);
-                    onSetEvents.AppendLine(systemCall);
-                    onChangedEvents.AppendLine(systemCall);
-                    onRemovedEvents.AppendLine(systemCall);
-                    break;
-                case ComponentEvent.Updated:
-                    onChangedEvents.AppendLine(systemCall);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+
+            if (eventType.HasFlagFast(ComponentEvent.Added))
+                onAddedEvents.AppendLine(systemCall);
+            if (eventType.HasFlagFast(ComponentEvent.Changed))
+                onChangedEvents.AppendLine(systemCall);
+            if (eventType.HasFlagFast(ComponentEvent.Set))
+                onSetEvents.AppendLine(systemCall);
+            if (eventType.HasFlagFast(ComponentEvent.Removed))
+                onRemovedEvents.AppendLine(systemCall);
         }
 
         foreach (var groupData in data.GroupDatas)
@@ -132,6 +120,41 @@ public sealed class GenerateEntityExtensions
             onRemovedEvents.AppendLine(onRemoved);
         }
 
+        var eventListenerDeclarations = new StringBuilder();
+
+        foreach (var eventData in componentData.Events)
+        {
+            if (eventData.ListenTarget == ListenTarget.Entity)
+            {
+                var declaration = eventData.AllowMultipleListeners
+                    ? $"public System.Collections.Generic.List<{componentData.TypeData.NamespaceSpecifier}I{eventData.Type.Prefix}{eventData.ComponentEvent}Listener> z{eventData.Type.Prefix}{eventData.ComponentEvent}Listeners;"
+                    : $"public {componentData.TypeData.NamespaceSpecifier}I{eventData.Type.Prefix}{eventData.ComponentEvent}Listener z{eventData.Type.Prefix}{eventData.ComponentEvent}Listener;";
+                eventListenerDeclarations.AppendLine(declaration);
+            }
+
+            var arguments = eventData.ComponentEvent == ComponentEvent.Removed ? string.Empty : methodArgumentsWithLeadingComma;
+            var eventCall = eventData switch
+            {
+                { Execution: EventExecution.Instant, AllowMultipleListeners: true, ListenTarget: ListenTarget.Context } => $"\t\tforeach (var value in Context.z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { Execution: EventExecution.Instant, AllowMultipleListeners: false, ListenTarget: ListenTarget.Context } => $"\t\tContext.z{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { Execution: EventExecution.Instant, AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { Execution: EventExecution.Instant, AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { AllowMultipleListeners: true, ListenTarget: ListenTarget.Context } => $"\t\tforeach (var value in Context.z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.Changed = true;",
+                { AllowMultipleListeners: false, ListenTarget: ListenTarget.Context } => $"\t\tContext.z{componentData.Prefix}{eventData.ComponentEvent}Listener?.Changed = true;",
+                { AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.Changed = true;",
+                { AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.Changed = true;",
+            };
+
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Added))
+                onAddedEvents.AppendLine(eventCall);
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Changed))
+                onChangedEvents.AppendLine(eventCall);
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Set))
+                onSetEvents.AppendLine(eventCall);
+            if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Removed))
+                onRemovedEvents.AppendLine(eventCall);
+        }
+
         if (componentData.IsCleanup)
         {
             onAddedEvents.AppendLine($"{componentData.FullName}.Collector.Add(this);");
@@ -148,6 +171,7 @@ public sealed class GenerateEntityExtensions
         return $$"""
                      [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                      public {{componentData.FullName}} {{componentData.Name}};
+                     {{eventListenerDeclarations}}
 
                      public bool Has{{componentData.Prefix}}() => this.{{componentData.Name}} != null;
 
@@ -163,22 +187,25 @@ public sealed class GenerateEntityExtensions
                          if (this.{{componentData.Name}} == null)
                          {
                              this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
-                             //OnAddedEvents:
+
+                             //OnAddedEvents (Method was called and a new Component was added):
                              {{onAddedEvents}}
+
                              return this;
                          }
 
                          if (Has{{componentData.Prefix}}(){{equalityComparer}})
                          {
-                             //OnChangedEvents(but is the same as before):
+                             //OnSetEvents (Method was called but component values are the same as before):
                              {{onSetEvents}}
+
                              return this;
                          }
 
                          var component = this.{{componentData.Name}};
                          this.{{componentData.Name}} = {{componentData.FullName}}.CreateComponent({{methodArguments}});
 
-                         //OnChangedEvents:
+                         //OnChangedEvents: (Method was called and component Values changed):
                          {{onChangedEvents}}
 
                          {{componentData.FullName}}.DestroyComponent(component);
@@ -200,7 +227,7 @@ public sealed class GenerateEntityExtensions
                          var component = this.{{componentData.Name}};
                          this.{{componentData.Name}} = null;
 
-                         //OnRemovedEvents:
+                         //OnRemovedEvents (Component was removed):
                          {{onRemovedEvents}}
 
                          {{componentData.FullName}}.DestroyComponent(component);

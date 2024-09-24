@@ -11,7 +11,7 @@ public struct FieldData : /*IAttributeResolver,*/ IFieldResolver, IEquatable<Fie
     public string TypeName { get; private set; }
     public string Name { get; private set; }
     public string? ValidLowerName { get; private set; }
-    public bool isTypeAnInterface { get; private set; }
+    public bool IsTypeAnInterface { get; private set; }
     // public EntityIndexType IndexType { get; private set; } = EntityIndexType.None;
 
     public FieldData()
@@ -36,7 +36,7 @@ public struct FieldData : /*IAttributeResolver,*/ IFieldResolver, IEquatable<Fie
 
         Name = fieldSymbol.Name;
         ValidLowerName = Name.ToValidLowerName();
-        isTypeAnInterface = fieldSymbol.Type.TypeKind == TypeKind.Interface;
+        IsTypeAnInterface = fieldSymbol.Type.TypeKind == TypeKind.Interface;
         return true;
     }
 
@@ -47,7 +47,8 @@ public struct FieldData : /*IAttributeResolver,*/ IFieldResolver, IEquatable<Fie
 
     public bool Equals(FieldData other)
     {
-        return TypeName == other.TypeName && Name == other.Name;
+        return TypeName == other.TypeName
+               && Name == other.Name;
     }
 
     public override bool Equals(object? obj)

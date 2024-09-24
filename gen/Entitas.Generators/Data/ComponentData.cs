@@ -97,20 +97,6 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         return true;
     }
 
-    // bool TryResolveEventAttribute(AttributeData attributeData)
-    // {
-    //     var eventData = new ComponentEventData
-    //     {
-    //         EventTarget = (EventTarget)(attributeData.ConstructorArguments[0].Value ?? EventTarget.Any),
-    //         EventType = (EventType)(attributeData.ConstructorArguments[1].Value ?? EventType.Added),
-    //         Order = (int?)attributeData.ConstructorArguments[2].Value ?? 0
-    //     };
-    //
-    //     if (!Events.Contains(eventData))
-    //         Events = Events.Add(eventData);
-    //     return true;
-    // }
-
     bool TryResolveUniqueAttribute(AttributeData _)
     {
         IsUnique = true;
@@ -180,15 +166,6 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
                 stringBuilder.AppendLine($"      This Component doesn't have any fields.");
             }
 
-            // if (Events.Length > 0)
-            // {
-            //     stringBuilder.AppendLine($"   {nameof(Events)}:");
-            //     foreach (var eventData in Events)
-            //     {
-            //         stringBuilder.AppendLine($"      {eventData.ToString()}");
-            //     }
-            // }
-
             if (Contexts.Length > 0)
             {
                 stringBuilder.AppendLine($"   {nameof(Contexts)}:");
@@ -211,7 +188,16 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
 
     public bool Equals(ComponentData other)
     {
-        return Contexts.Equals(other.Contexts) && TypeData.Equals(other.TypeData) && Fields.Equals(other.Fields) && IsUnique == other.IsUnique && IndexType == other.IndexType && IndexMaxSize == other.IndexMaxSize && IsCleanup == other.IsCleanup && CleanupMode == other.CleanupMode && CleanupExecution == other.CleanupExecution && CleanupOrder == other.CleanupOrder;
+        return TypeData.Equals(other.TypeData)
+               && IsUnique == other.IsUnique
+               && IndexType == other.IndexType
+               && IndexMaxSize == other.IndexMaxSize
+               && IsCleanup == other.IsCleanup
+               && CleanupMode == other.CleanupMode
+               && CleanupExecution == other.CleanupExecution
+               && CleanupOrder == other.CleanupOrder
+               && Contexts.SequenceEqual(other.Contexts)
+               && Fields.SequenceEqual(other.Fields);
     }
 
     public override bool Equals(object? obj)
@@ -219,23 +205,7 @@ public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, I
         return obj is ComponentData other && Equals(other);
     }
 
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            var hashCode = TypeData.GetHashCode();
-            hashCode = (hashCode * 397) ^ Fields.GetHashCode();
-            hashCode = (hashCode * 397) ^ Contexts.GetHashCode();
-            hashCode = (hashCode * 397) ^ IsUnique.GetHashCode();
-            hashCode = (hashCode * 397) ^ (int)IndexType;
-            hashCode = (hashCode * 397) ^ IndexMaxSize;
-            hashCode = (hashCode * 397) ^ IsCleanup.GetHashCode();
-            hashCode = (hashCode * 397) ^ (int)CleanupMode;
-            hashCode = (hashCode * 397) ^ (int)CleanupExecution;
-            hashCode = (hashCode * 397) ^ CleanupOrder;
-            return hashCode;
-        }
-    }
+    public override int GetHashCode() => TypeData.GetHashCode();
 
     public int CompareTo(ComponentData other)
     {

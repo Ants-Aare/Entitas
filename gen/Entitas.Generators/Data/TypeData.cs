@@ -13,6 +13,7 @@ public record struct TypeData(string? Namespace, string FullName, string Name, s
 
     public static TypeData Create(INamedTypeSymbol namedTypeSymbol, string suffix)
     {
+        // var n = namedTypeSymbol.ContainingNamespace?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted))
         var @namespace = namedTypeSymbol.ContainingNamespace.IsGlobalNamespace
             ? null
             : namedTypeSymbol.ContainingNamespace.ToDisplayString();

@@ -101,12 +101,6 @@ public struct GroupData() : IClassDeclarationResolver, IAttributeResolver, IFina
         return true;
     }
 
-
-    public bool Equals(GroupData other)
-    {
-        return TypeData.Equals(other.TypeData) && AnyOf.Equals(other.AnyOf) && AllOf.Equals(other.AllOf) && NoneOf.Equals(other.NoneOf);
-    }
-
     public GroupData? Finalise()
     {
         if (AnyOf.Length == 0 && AllOf.Length == 0 && NoneOf.Length == 0)
@@ -171,22 +165,19 @@ public struct GroupData() : IClassDeclarationResolver, IAttributeResolver, IFina
         return obj is GroupData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(GroupData)}");
     }
 
+    public bool Equals(GroupData other)
+    {
+        return TypeData.Equals(other.TypeData)
+               && AnyOf.SequenceEqual(other.AnyOf)
+               && AllOf.SequenceEqual(other.AllOf)
+               && NoneOf.SequenceEqual(other.NoneOf);
+    }
     public override bool Equals(object? obj)
     {
         return obj is GroupData other && Equals(other);
     }
 
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            var hashCode = TypeData.GetHashCode();
-            hashCode = (hashCode * 397) ^ AnyOf.GetHashCode();
-            hashCode = (hashCode * 397) ^ AllOf.GetHashCode();
-            hashCode = (hashCode * 397) ^ NoneOf.GetHashCode();
-            return hashCode;
-        }
-    }
+    public override int GetHashCode() => TypeData.GetHashCode();
 
     public static IEqualityComparer<GroupData> ComponentComparer { get; } = new ComponentEqualityComparer();
 

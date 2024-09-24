@@ -14,7 +14,6 @@ namespace Entitas.Generators.Data;
 public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ContextData>, IEquatable<ContextData>, IComparable<ContextData>, IComparable
 {
     public TypeData TypeData { get; private set; } = default;
-
     public ImmutableArray<TypeData> Components { get; set; } = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> Systems { get; set; } = ImmutableArray<TypeData>.Empty;
     public ImmutableArray<TypeData> Features { get; set; } = ImmutableArray<TypeData>.Empty;
@@ -163,7 +162,10 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
 
     public bool Equals(ContextData other)
     {
-        return Components.Equals(other.Components) && Systems.Equals(other.Systems) && Features.Equals(other.Features) && FullName == other.FullName;
+        return TypeData == other.TypeData
+               && Components.SequenceEqual(other.Components)
+               && Systems.SequenceEqual(other.Systems)
+               && Features.SequenceEqual(other.Features);
     }
 
     public override bool Equals(object? obj)
@@ -171,17 +173,7 @@ public struct ContextData() : IClassDeclarationResolver, IAttributeResolver, IFi
         return obj is ContextData other && Equals(other);
     }
 
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            var hashCode = Components.GetHashCode();
-            hashCode = (hashCode * 397) ^ Systems.GetHashCode();
-            hashCode = (hashCode * 397) ^ Features.GetHashCode();
-            hashCode = (hashCode * 397) ^ FullName.GetHashCode();
-            return hashCode;
-        }
-    }
+    public override int GetHashCode() => TypeData.GetHashCode();
 
     public int CompareTo(ContextData other)
     {

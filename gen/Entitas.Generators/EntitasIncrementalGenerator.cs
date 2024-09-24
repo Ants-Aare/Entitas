@@ -14,11 +14,14 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext initContext)
     {
+        // var configOptionsData = initContext.AnalyzerConfigOptionsProvider.Select(ConfigOptionsData.Create);
         var listenerDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(ListenerData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ListenerData>)
             .RemoveEmptyValues();
-        var listenerEvents = listenerDatas.SelectMany((x, _) => x.Events)
-            .RemoveDuplicates();
+
+        var listenerEvents = listenerDatas
+            .Collect()
+            .SelectMany((x, _) => x.Sort().SelectMany(y=> y.Events));
 
         var archetypeDatas = initContext.SyntaxProvider
             .CreateSyntaxProvider(ArchetypeData.SyntaxFilter, SyntaxTransformer.TransformClassDeclarationTo<ArchetypeData>)
@@ -48,9 +51,8 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .RemoveEmptyValues();
 
         //Add events
-
-        componentDatas.Combine(listenerEvents.WithComparer(EventData.TypeAndEventComparer).Collect())
-            .Select(AddEventsToComponent)
+        componentDatas = componentDatas.Combine(listenerEvents.Collect())
+            .Select(AddEventsToComponent);
 
         //Add components and systems from features
         var features = featureDatas.Collect();
@@ -119,12 +121,36 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
     {
         var componentData = data.componentData;
         var events = new List<EventData>();
+
         foreach (var eventData in data.eventDatas.Where(x => x.Type == componentData.TypeData))
         {
-            if(events.Contains())
-            events.Add();
+            var candidate = eventData;
+            if (componentData.IsUnique)
+                candidate.ListenTarget = ListenTarget.Context;
+
+            var hasFoundInExistingEvents = false;
+
+            for (var i = 0; i < events.Count; i++)
+            {
+                var existingEventData = events[i];
+                if (existingEventData.ComponentEvent == candidate.ComponentEvent && existingEventData.ListenTarget == candidate.ListenTarget)
+                {
+                    if (candidate.Order != 0 && existingEventData.Order == 0)
+                        existingEventData.Order = candidate.Order;
+                    if(candidate.AllowMultipleListeners || existingEventData.AllowMultipleListeners)
+                        existingEventData.AllowMultipleListeners = true;
+                    if (candidate.Execution != EventExecution.Instant && existingEventData.Execution == EventExecution.Instant)
+                        existingEventData.Execution = existingEventData.Execution | candidate.Execution;
+                    events[i] = existingEventData;
+                    hasFoundInExistingEvents = true;
+                }
+            }
+
+            if(!hasFoundInExistingEvents)
+                events.Add(candidate);
         }
-        componentData.Events = .ToImmutableArray();
+
+        componentData.Events = events.ToImmutableArray();
         return componentData;
     }
 

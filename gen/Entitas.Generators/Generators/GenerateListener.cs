@@ -54,10 +54,10 @@ public static class GenerateListener
         return $$"""
                  partial class {{listenerData.Name}} : {{interfaces}}
                  {
-                     public void StartListening(IEntity entity)
+                     public void StartListening(Entitas.IEntity entity)
                      {
                      }
-                     public void StopListening(IEntity entity)
+                     public void StopListening(Entitas.IEntity entity)
                      {
                      }
                  }

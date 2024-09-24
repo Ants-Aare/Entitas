@@ -11,11 +11,10 @@ using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ListenerData>
+public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ListenerData>, IComparable<ListenerData>, IEquatable<ListenerData>
 {
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<EventData> Events = ImmutableArray<EventData>.Empty;
-    // public bool MakeMethodsVirtual = false;
     readonly List<EventData> _events = new();
 
     public string? Namespace => TypeData.Namespace;
@@ -92,28 +91,33 @@ public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IF
 
         return stringBuilder.ToString();
     }
-}
 
-public record struct EventData(TypeData Type, ComponentEvent ComponentEvent = ComponentEvent.Added, ListenTarget ListenTarget = ListenTarget.Entity, bool AllowMultipleListeners = false, EventExecution Execution = EventExecution.Instant, int Order = 0)
-{
-    sealed class TypeComponentEventEqualityComparer : IEqualityComparer<EventData>
+    public bool Equals(ListenerData other)
     {
-        public bool Equals(EventData x, EventData y)
-        {
-            return x.Type.Equals(y.Type) && x.ComponentEvent == y.ComponentEvent;
-        }
-
-        public int GetHashCode(EventData obj)
-        {
-            unchecked
-            {
-                return (obj.Type.GetHashCode() * 397) ^ (int)obj.ComponentEvent;
-            }
-        }
+        return TypeData.Equals(other.TypeData)
+               && Events.SequenceEqual(other.Events);
     }
 
-    public static IEqualityComparer<EventData> TypeAndEventComparer { get; } = new TypeComponentEventEqualityComparer();
+    public override bool Equals(object? obj)
+    {
+        return obj is ListenerData other && Equals(other);
+    }
+
+    public override int GetHashCode() => TypeData.GetHashCode();
+
+    public int CompareTo(ListenerData other)
+    {
+        return string.Compare(TypeData.FullName, other.TypeData.FullName, StringComparison.Ordinal);
+    }
+
+    public int CompareTo(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return 1;
+        return obj is ComponentData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(ComponentData)}");
+    }
 }
+
+public record struct EventData(TypeData Type, ComponentEvent ComponentEvent = ComponentEvent.Added, ListenTarget ListenTarget = ListenTarget.Entity, bool AllowMultipleListeners = false, EventExecution Execution = EventExecution.Instant, int Order = 0);
 
 public enum ListenTarget
 {
@@ -121,12 +125,24 @@ public enum ListenTarget
     Context = 1,
 }
 
+[Flags]
 public enum ComponentEvent
 {
-    Added = 0,
-    Removed = 1,
-    AddedOrRemoved = 2,
-    Updated = 3,
+    Added = 1,
+    Changed = 2,
+    Set = 4,
+    Removed = 8,
+    AddedOrRemoved = Added | Removed,
+    Updated = Added | Set | Changed,
+    AllEvents = Added | Changed | Set | Removed,
+}
+
+public static class ComponentEventExtensions
+{
+    public static bool HasFlagFast(this ComponentEvent value, ComponentEvent flag)
+    {
+        return (value & flag) != 0;
+    }
 }
 
 [Flags]

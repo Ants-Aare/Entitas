@@ -40,14 +40,39 @@ public sealed class GenerateComponent
     static string GetContent(ComponentData componentData)
     {
         var methodSignature = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
+        var methodSignatureLeadingComma = componentData.GetMethodSignatureLeadingComma();
         var methodArguments = componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
         var ctorAssignments = componentData.Fields.Length == 0 ? string.Empty : string.Join("\n", componentData.Fields.Select(static field => $"this.{field.Name} = {field.ValidLowerName};"));
         var createAssignments = componentData.Fields.Length == 0 ? string.Empty : string.Join("\n", componentData.Fields.Select(static field => $"component.{field.Name} = {field.ValidLowerName};"));
         var destroyAssignments = componentData.Fields.Length == 0 ? string.Empty : string.Join("\n", componentData.Fields.Select(static field => $"component.{field.Name} = default;"));
         var interfaceUsage = componentData.IndexType == EntityIndexType.Array ? $": I{componentData.Prefix}Indexable" : string.Empty;
-        var interfaceDeclaration = componentData.IndexType == EntityIndexType.Array ? $"public interface I{componentData.Prefix}Indexable{{public int GetIndex({methodSignature});}}" : string.Empty;
+        var interfaceDeclarations = new StringBuilder();
 
-        var implicitTarget = componentData.Fields.Where(x => !x.isTypeAnInterface).ToList();
+        if (componentData.IndexType == EntityIndexType.Array)
+            interfaceDeclarations.AppendLine($"public interface I{componentData.Prefix}Indexable{{public int GetIndex({methodSignature});}}");
+        if (componentData.HasEvents)
+        {
+            foreach (var eventData in componentData.Events)
+            {
+                interfaceDeclarations.Append("public interface I")
+                    .Append(componentData.Prefix)
+                    .Append(eventData.ComponentEvent)
+                    .Append("Listener{public void On")
+                    .Append(componentData.Prefix)
+                    .Append(eventData.ComponentEvent)
+                    .Append("(I")
+                    .Append(componentData.Prefix)
+                    .Append(eventData.ListenTarget == ListenTarget.Entity ? "Entity entity" : "Context context");
+                if (eventData.ComponentEvent != ComponentEvent.Removed)
+                    interfaceDeclarations.Append(methodSignatureLeadingComma);
+                interfaceDeclarations.Append(");");
+                if (eventData.AllowMultipleListeners)
+                    interfaceDeclarations.Append($"public void {componentData.Prefix}{eventData.ComponentEvent}();");
+                interfaceDeclarations.Append("}\n");
+            }
+        }
+
+        var implicitTarget = componentData.Fields.Where(x => !x.IsTypeAnInterface).ToList();
         var implicitOperator = implicitTarget.Count == 0
             ? $"public static implicit operator bool({componentData.Name} component) => component != null;"
             : $"public static implicit operator {implicitTarget[0].TypeName}({componentData.Name} component) => component.{implicitTarget[0].Name};";
@@ -55,7 +80,7 @@ public sealed class GenerateComponent
         var cleanupContent = componentData.IsCleanup ? GetCleanupContent(componentData) : string.Empty;
 
         return $$"""
-                 {{interfaceDeclaration}}
+                 {{interfaceDeclarations}}
                  public sealed partial class {{componentData.Name}}{{interfaceUsage}}
                  {
                      static readonly System.Collections.Generic.Stack<{{componentData.Name}}> ComponentPool = new ();
