@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
-using Entitas.Generators.Common;
 using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
@@ -86,10 +85,10 @@ public sealed class GenerateContext
         var initializeSystems = initializeSystemDatas.Count == 0 ? string.Empty : string.Join("\n\t\t", initializeSystemDatas.Select(static system => $"context.{system.ValidLowerName}.Initialize(); // Order: {system.InitializeOrder}"));
         var teardownSystems = teardownSystemDatas.Count == 0 ? string.Empty : string.Join("\n\t\t", teardownSystemDatas.Select(static system => $"{system.ValidLowerName}.Teardown(); // Order: {system.TeardownOrder}"));
 
-        var eventDatas = data.ComponentDatas.SelectMany(x => x.Events).Where(x => x.ListenTarget == ListenTarget.Context);
-        var eventListenerDeclarations = new StringBuilder().AppendJoin("\n\t", eventDatas, x => x.AllowMultipleListeners
-            ? $"public System.Collections.Generic.List<{x.Type.NamespaceSpecifier}I{x.Type.Prefix}{x.ComponentEvent}Listener> _{x.Type.Prefix}{x.ComponentEvent}Listeners;"
-            :$"public {x.Type.NamespaceSpecifier}I{x.Type.Prefix}{x.ComponentEvent}Listener _{x.Type.Prefix}{x.ComponentEvent}Listener;");
+        // var eventDatas = data.ComponentDatas.SelectMany(x => x.Events).Where(x => x.ListenTarget == ListenTarget.Context);
+        // var eventListenerDeclarations = new StringBuilder().AppendJoin("\n\t", eventDatas, x => x.AllowMultipleListeners
+        //     ? $"public System.Collections.Generic.List<{x.Component.NamespaceSpecifier}I{x.Component.Prefix}{x.ComponentEvent}Listener> z{x.Component.Prefix}{x.ComponentEvent}Listeners;"
+        //     :$"public {x.Component.NamespaceSpecifier}I{x.Component.Prefix}{x.ComponentEvent}Listener z{x.Component.Prefix}{x.ComponentEvent}Listener;");
 
         var uniqueComponents = data.ComponentDatas.Where(x => x.IsUnique).ToList();
         var destroyUnique = uniqueComponents.Count == 0 ? string.Empty : string.Join("\n\t\t", uniqueComponents.Select(static x => $"{x.FullName}.DestroyComponent({x.Name});"));
@@ -116,7 +115,6 @@ public sealed class GenerateContext
                      {{contextData.Prefix}}Entity contextEntity;
                      {{systemReferences}}
                      {{groupDeclarations}}
-                     {{eventListenerDeclarations}}
 
                      private {{contextData.Name}}()
                      {

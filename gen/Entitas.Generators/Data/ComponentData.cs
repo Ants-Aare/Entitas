@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -12,6 +13,23 @@ namespace Entitas.Generators.Data;
 
 public struct ComponentData() : IClassDeclarationResolver, IAttributeResolver, IFieldResolver, IMethodResolver, IFinalisable<ComponentData>, IComparable<ComponentData>, IComparable, IEquatable<ComponentData>
 {
+    sealed class TypeAndFieldsEqualityComparer : IEqualityComparer<ComponentData>
+    {
+        public bool Equals(ComponentData x, ComponentData y)
+        {
+            return x.TypeData.Equals(y.TypeData) && x.Fields.Equals(y.Fields);
+        }
+
+        public int GetHashCode(ComponentData obj)
+        {
+            unchecked
+            {
+                return (obj.TypeData.GetHashCode() * 397) ^ obj.Fields.GetHashCode();
+            }
+        }
+    }
+    public static IEqualityComparer<ComponentData> TypeAndFieldsComparer { get; } = new TypeAndFieldsEqualityComparer();
+
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<FieldData> Fields { get; private set; } = ImmutableArray<FieldData>.Empty;
     public ImmutableArray<EventData> Events = ImmutableArray<EventData>.Empty;

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text;
 using AAA.SourceGenerators.Common;
+using Entitas.Generators.Common;
 using Entitas.Generators.Data;
 using Entitas.Generators.Utility;
 using Microsoft.CodeAnalysis;
@@ -35,19 +36,22 @@ public sealed class GenerateEntity
     {
         var contextData = data.ContextData;
         var componentDatas = data.ComponentDatas;
+        var systemDatasWithEntities = data.SystemDatas.Where(x=> x.IsReactiveSystem || x.IsCleanupSystem).ToList();
+        var events = data.ComponentDatas.SelectMany(x=> x.Events);
 
         var entityComponents = componentDatas.Where(x => !x.IsUnique).ToArray();
-        var destroyCalls = entityComponents.Length == 0
-            ? string.Empty
-            : string.Join("\n\n", entityComponents
-                .Select(static c => $"{(c.IndexType == EntityIndexType.None ? string.Empty : $"\t\tContext.SetIndexed{c.Prefix}Entity(null, {c.GetVariableMethodArguments(c.Name)});\n")}\t\t{c.FullName}.DestroyComponent(this.{c.Name});\n\t\tthis.{c.Name} = null;"));
+        var destroyCalls = new StringBuilder()
+            .AppendJoin("\n\n", entityComponents, c => $"{(c.IndexType == EntityIndexType.None ? string.Empty : $"\t\tContext.SetIndexed{c.Prefix}Entity(null, {c.GetVariableMethodArguments(c.Name)});\n")}\t\t{c.FullName}.DestroyComponent(this.{c.Name});\n\t\tthis.{c.Name} = null;")
+            .AppendJoin("\n\n", systemDatasWithEntities, system => $"//{system.Name}")
+            .AppendJoin("\n\n", events, eventData=> $"//{eventData.Component.Prefix}{eventData.ComponentEvent}");
 
-        var systemDatas = data.SystemDatas.Where(x=> x.IsReactiveSystem && x.NeedsCustomInterface()).ToList();
-        var systemInterfaces = systemDatas.Count == 0 ? string.Empty : ',' + string.Join(", ", systemDatas.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Entity"));
+
+        var systemDatasInterfaces = data.SystemDatas.Where(x=> x.IsReactiveSystem && x.NeedsCustomInterface()).ToList();
+        var systemInterfaces = systemDatasInterfaces.Count == 0 ? string.Empty : ',' + string.Join(", ", systemDatasInterfaces.Select(x => $"{x.Namespace.NamespaceClassifier()}I{x.Name}Entity"));
         var featureInterfaces = contextData.Features.Length == 0 ? string.Empty : ',' + string.Join(", ", contextData.Features.Select(static x =>$"{x.NamespaceSpecifier}I{x.Name}Entity"));
 
         return $$"""
-                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}{{featureInterfaces}}
+                 public sealed partial class {{contextData.Prefix}}Entity : Entitas.EntityBase, Entitas.IEntity, System.IEquatable<{{contextData.Prefix}}Entity>{{systemInterfaces}}{{featureInterfaces}}
                  {
                      public {{contextData.Name}} Context { get; private set; }
                      [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]

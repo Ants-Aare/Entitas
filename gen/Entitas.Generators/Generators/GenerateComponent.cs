@@ -66,8 +66,8 @@ public sealed class GenerateComponent
                 if (eventData.ComponentEvent != ComponentEvent.Removed)
                     interfaceDeclarations.Append(methodSignatureLeadingComma);
                 interfaceDeclarations.Append(");");
-                if (eventData.AllowMultipleListeners)
-                    interfaceDeclarations.Append($"public void {componentData.Prefix}{eventData.ComponentEvent}();");
+                interfaceDeclarations.Append("public void StartListeningTo").Append(componentData.Prefix).Append(eventData.ComponentEvent).Append("(I").Append(componentData.TypeData.Prefix).Append("Entity entity);")
+                    .Append("public void StopListeningTo").Append(componentData.Prefix).Append(eventData.ComponentEvent).Append("(I").Append(componentData.TypeData.Prefix).Append("Entity entity);");
                 interfaceDeclarations.Append("}\n");
             }
         }

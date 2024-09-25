@@ -70,6 +70,11 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .Combine(contexts)
             .Select(CombineArchetypesWithContexts);
 
+        var extendedListenerDatas = listenerDatas
+            .Combine(components.WithComparer(new ImmutableArrayComparer<ComponentData>(ComponentData.TypeAndFieldsComparer)))
+            .Combine(contexts)
+            .Select(CombineListenersWithComponents);
+
         var extendedComponentDatas = componentDatas
             .Combine(contexts)
             .Select(CombineComponentsWithContexts);
@@ -96,6 +101,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
             .Select((x, _) => SystemData.CreateCleanupSystem(x))
             .Collect()
             .Sort(SystemData.CleanupOrderComparer);
+
         var allSystems = systems.Append(cleanupSystems);
 
         initContext.RegisterSourceOutput(componentDatas, GenerateComponent.GenerateComponentOutput);
@@ -110,7 +116,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         initContext.RegisterSourceOutput(extendedContextDatas, GenerateEntity.GenerateEntityOutput);
         initContext.RegisterSourceOutput(extendedContextDatas, GenerateContext.GenerateContextOutput);
 
-        initContext.RegisterSourceOutput(listenerDatas, GenerateListener.GenerateListenerOutput);
+        initContext.RegisterSourceOutput(extendedListenerDatas, GenerateListener.GenerateListenerOutput);
         initContext.RegisterSourceOutput(featureDatas, GenerateFeature.GenerateFeatureOutput);
         initContext.RegisterSourceOutput(groupDatas, GenerateGroup.GenerateGroupOutput);
         initContext.RegisterSourceOutput(extendedGroupDatas, GenerateGroup.GenerateGroupExtensionsOutput);
@@ -122,7 +128,7 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         var componentData = data.componentData;
         var events = new List<EventData>();
 
-        foreach (var eventData in data.eventDatas.Where(x => x.Type == componentData.TypeData))
+        foreach (var eventData in data.eventDatas.Where(x => x.Component == componentData.TypeData))
         {
             var candidate = eventData;
             if (componentData.IsUnique)
@@ -154,6 +160,21 @@ public sealed class EntitasIncrementalGenerator : IIncrementalGenerator
         return componentData;
     }
 
+    ExtendedListenerData CombineListenersWithComponents(((ListenerData listenerData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<ContextData> contextDatas) data, CancellationToken _)
+    {
+        var listenerData = data.Left.listenerData;
+        var components = data.Left.componentDatas
+            .Where(component => listenerData.Events.Any(x => x.Component == component.TypeData))
+            .ToImmutableArray();
+
+        var contexts = data.contextDatas
+            .Where(context => listenerData.Events
+                .Any(x => context.Components.Any(y => y == x.Component)
+                          || components.Any(y => y.Contexts.Any(z => z == context.TypeData))))
+            .ToImmutableArray();
+
+        return new ExtendedListenerData(listenerData, contexts, components);
+    }
     ExtendedArchetypeData CombineArchetypesWithContexts(((ArchetypeData archetypeData, ImmutableArray<ComponentData> componentDatas) Left, ImmutableArray<ContextData> contextDatas) data, CancellationToken arg2)
     {
         var archetypeData = data.Left.archetypeData;

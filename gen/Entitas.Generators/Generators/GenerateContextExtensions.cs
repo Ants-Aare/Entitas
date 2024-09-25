@@ -80,15 +80,26 @@ public sealed class GenerateContextExtensions
                 onRemovedEvents.AppendLine(systemCall);
         }
 
+        var eventListenerDeclarations = new StringBuilder();
+
         foreach (var eventData in componentData.Events)
         {
+            if (eventData.ListenTarget == ListenTarget.Context)
+            {
+                if(eventData.AllowMultipleListeners)
+                    eventListenerDeclarations.Append("public System.Collections.Generic.List<").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener> z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listeners;");
+                else
+                    eventListenerDeclarations.Append("public ").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listener;");
+            }
+
             var arguments = eventData.ComponentEvent == ComponentEvent.Removed ? string.Empty : methodArgumentsWithLeadingComma;
             var eventCall = eventData switch
             {
-                { Execution: EventExecution.Instant, AllowMultipleListeners: true } => $"foreach (var value in _{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
-                { Execution: EventExecution.Instant, AllowMultipleListeners: false } => $"_{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
-                { AllowMultipleListeners: true } => $"foreach (var value in _{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.Changed = true;",
-                { AllowMultipleListeners: false } => $"_{componentData.Prefix}{eventData.ComponentEvent}Listener?.Changed = true;",
+                { Execution: EventExecution.Instant, AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                { Execution: EventExecution.Instant, AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
+                // { AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
+                // { AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
+                _=> String.Empty,
             };
 
             if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Added))
@@ -109,6 +120,7 @@ public sealed class GenerateContextExtensions
         return $$"""
                  [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
                  public {{componentData.FullName}} {{componentData.Name}};
+                 {{eventListenerDeclarations}}
 
                  public bool Has{{componentData.Prefix}}() => this.{{componentData.Name}} != null;
 

@@ -105,3 +105,23 @@ public record struct ExtendedArchetypeData(ArchetypeData ArchetypeData, Immutabl
         }
     }
 }
+public record struct ExtendedListenerData(ListenerData ListenerData, ImmutableArray<ContextData> ContextDatas, ImmutableArray<ComponentData> ComponentDatas)
+{
+    public readonly bool Equals(ExtendedListenerData other)
+    {
+        return ListenerData.Equals(other.ListenerData)
+               && ContextDatas.SequenceEqual(other.ContextDatas)
+               && ComponentDatas.SequenceEqual(other.ComponentDatas);
+    }
+
+    public readonly override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = ListenerData.GetHashCode();
+            hashCode = (hashCode * 397) ^ ContextDatas.SequenceGetHashCode();
+            hashCode = (hashCode * 397) ^ ComponentDatas.SequenceGetHashCode();
+            return hashCode;
+        }
+    }
+}

@@ -11,10 +11,11 @@ using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Data;
 
-public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ListenerData>, IComparable<ListenerData>, IEquatable<ListenerData>
+public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IFinalisable<ListenerData>, IComparable<ListenerData>, IEquatable<ListenerData>, IComparable
 {
     public TypeData TypeData { get; private set; } = default;
     public ImmutableArray<EventData> Events = ImmutableArray<EventData>.Empty;
+    // public ImmutableArray<TypeData> EntityIs { get; private set; } = ImmutableArray<TypeData>.Empty;
     readonly List<EventData> _events = new();
 
     public string? Namespace => TypeData.Namespace;
@@ -44,9 +45,16 @@ public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IF
 
     public bool TryResolveAttribute(AttributeData attributeData)
     {
-        if (attributeData.AttributeClass?.Name != ListenToAttributeName)
-            return true;
+        return attributeData switch
+        {
+            { AttributeClass.Name: ListenToAttributeName } => TryResolveListenToAttribute(attributeData),
+            // { AttributeClass.Name: EntityIsAttributeName } => TryResolveEntityIsAttribute(attributeData),
+            _ => true
+        };
+    }
 
+    bool TryResolveListenToAttribute(AttributeData attributeData)
+    {
         var typeData = TypeData.Create((INamedTypeSymbol)attributeData.ConstructorArguments[0].Value!, ComponentName);
         var componentEvent = (ComponentEvent)(attributeData.ConstructorArguments[1].Value ?? ComponentEvent.Added);
         var listenTarget = (ListenTarget)(attributeData.ConstructorArguments[2].Value ?? ListenTarget.Entity);
@@ -58,6 +66,15 @@ public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IF
         _events.Add(listenerEventData);
         return true;
     }
+
+    // bool TryResolveEntityIsAttribute(AttributeData attributeData)
+    // {
+    //     EntityIs = attributeData.ConstructorArguments[0].Values
+    //         .Where(x => x.Value is INamedTypeSymbol)
+    //         .Select(x => TypeData.Create((INamedTypeSymbol)x.Value!, ComponentName))
+    //         .ToImmutableArray();
+    //     return true;
+    // }
 
     public ListenerData? Finalise()
     {
@@ -80,7 +97,7 @@ public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IF
                 stringBuilder.AppendLine($"\t{nameof(Events)}:");
                 foreach (var eventData in Events)
                 {
-                    stringBuilder.AppendLine($"\t\t{eventData.Type.FullName}: {nameof(ComponentEvent)}.{eventData.ComponentEvent}, {nameof(ListenTarget)}.{eventData.ListenTarget}, AllowMultipleListeners:{eventData.AllowMultipleListeners}, {nameof(EventExecution)}.{eventData.Execution}, Order:{eventData.Order}");
+                    stringBuilder.AppendLine($"\t\t{eventData.Component.FullName}: {nameof(ComponentEvent)}.{eventData.ComponentEvent}, {nameof(ListenTarget)}.{eventData.ListenTarget}, AllowMultipleListeners:{eventData.AllowMultipleListeners}, {nameof(EventExecution)}.{eventData.Execution}, Order:{eventData.Order}");
                 }
             }
         }
@@ -107,17 +124,26 @@ public struct ListenerData() : IClassDeclarationResolver, IAttributeResolver, IF
 
     public int CompareTo(ListenerData other)
     {
-        return string.Compare(TypeData.FullName, other.TypeData.FullName, StringComparison.Ordinal);
+        return TypeData.CompareTo(other.TypeData);
     }
 
     public int CompareTo(object? obj)
     {
         if (ReferenceEquals(null, obj)) return 1;
-        return obj is ComponentData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(ComponentData)}");
+        return obj is ListenerData other ? CompareTo(other) : throw new ArgumentException($"Object must be of type {nameof(ListenerData)}");
     }
 }
 
-public record struct EventData(TypeData Type, ComponentEvent ComponentEvent = ComponentEvent.Added, ListenTarget ListenTarget = ListenTarget.Entity, bool AllowMultipleListeners = false, EventExecution Execution = EventExecution.Instant, int Order = 0);
+public record struct EventData(TypeData Component, ComponentEvent ComponentEvent = ComponentEvent.Added, ListenTarget ListenTarget = ListenTarget.Entity, bool AllowMultipleListeners = false, EventExecution Execution = EventExecution.Instant, int Order = 0)
+{
+    public bool HasAnyUpdateExecution
+        => Execution.HasFlagFast(EventExecution.PreUpdate)
+           || Execution.HasFlagFast(EventExecution.PostUpdate)
+           || Execution.HasFlagFast(EventExecution.PreLateUpdate)
+           || Execution.HasFlagFast(EventExecution.PostLateUpdate)
+           || Execution.HasFlagFast(EventExecution.PreFixedUpdate)
+           || Execution.HasFlagFast(EventExecution.PostFixedUpdate);
+}
 
 public enum ListenTarget
 {
@@ -158,4 +184,12 @@ public enum EventExecution
     PostFixedUpdate = 1 << 5,
 
     Instant = 1 << 7,
+}
+
+public static class EventExecutionExtensions
+{
+    public static bool HasFlagFast(this EventExecution value, EventExecution flag)
+    {
+        return (value & flag) != 0;
+    }
 }

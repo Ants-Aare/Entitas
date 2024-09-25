@@ -9,18 +9,22 @@ public static class ComponentDataExtensions
     public static string GetEqualityComparer(this ComponentData componentData)
         => componentData.Fields.Length == 0 ? string.Empty : string.Join("", componentData.Fields.Select(field => $" && this.{componentData.Name}.{field.Name} == {field.ValidLowerName}"));
 
-
     public static string GetMethodArguments(this ComponentData componentData)
         => componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.ValidLowerName}"));
+
     public static string GetMethodArgumentsLeadingComma(this ComponentData componentData)
         => componentData.Fields.Length == 0 ? string.Empty : $", {GetMethodArguments(componentData)}";
+
     public static string GetMethodSignature(this ComponentData componentData)
         => componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"{field.TypeName} {field.ValidLowerName}"));
+
     public static string GetMethodSignatureLeadingComma(this ComponentData componentData)
         => componentData.Fields.Length == 0 ? string.Empty : $", {GetMethodSignature(componentData)}";
 
     public static string GetVariableMethodArguments(this ComponentData componentData)
         => componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(static field => $"component.{field.Name}"));
+    public static string GetVariableMethodArgumentsLeadingComma(this ComponentData componentData)
+        => componentData.Fields.Length == 0 ? string.Empty : ',' +string.Join(", ", componentData.Fields.Select(static field => $"component.{field.Name}"));
 
     public static string GetVariableMethodArguments(this ComponentData componentData, string variableName)
         => componentData.Fields.Length == 0 ? string.Empty : string.Join(", ", componentData.Fields.Select(field => $"{variableName}.{field.Name}"));

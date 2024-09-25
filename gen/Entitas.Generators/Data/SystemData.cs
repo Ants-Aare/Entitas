@@ -14,35 +14,6 @@ namespace Entitas.Generators.Data;
 
 public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, IConstructorResolver, IComparable<SystemData>, IEquatable<SystemData>
 {
-    public bool Equals(SystemData other)
-    {
-        return TypeData.Equals(other.TypeData)
-               && IsInitializeSystem == other.IsInitializeSystem
-               && InitializeOrder == other.InitializeOrder
-               && IsTeardownSystem == other.IsTeardownSystem
-               && TeardownOrder == other.TeardownOrder
-               && IsReactiveSystem == other.IsReactiveSystem
-               && ReactiveExecution == other.ReactiveExecution
-               && ReactiveOrder == other.ReactiveOrder
-               && IsExecuteSystem == other.IsExecuteSystem
-               && ExecuteExecution == other.ExecuteExecution
-               && ExecuteOrder == other.ExecuteOrder
-               && IsCleanupSystem == other.IsCleanupSystem
-               && CleanupExecution == other.CleanupExecution
-               && CleanupOrder == other.CleanupOrder
-               && TriggeredBy.SequenceEqual(other.TriggeredBy)
-               && EntityIs.SequenceEqual(other.EntityIs)
-               && Contexts.SequenceEqual(other.Contexts)
-               && ConstructorArguments.Equals(other.ConstructorArguments);
-    }
-
-    public override bool Equals(object? obj)
-    {
-        return obj is SystemData other && Equals(other);
-    }
-
-    public override int GetHashCode() => TypeData.GetHashCode();
-
     public TypeData TypeData { get; private set; } = default;
     public string ValidLowerName { get; private set; } = null!;
 
@@ -241,6 +212,35 @@ public struct SystemData() : IClassDeclarationResolver, IAttributeResolver, ICon
 
         return stringBuilder.ToString();
     }
+
+    public bool Equals(SystemData other)
+    {
+        return TypeData.Equals(other.TypeData)
+               && IsInitializeSystem == other.IsInitializeSystem
+               && InitializeOrder == other.InitializeOrder
+               && IsTeardownSystem == other.IsTeardownSystem
+               && TeardownOrder == other.TeardownOrder
+               && IsReactiveSystem == other.IsReactiveSystem
+               && ReactiveExecution == other.ReactiveExecution
+               && ReactiveOrder == other.ReactiveOrder
+               && IsExecuteSystem == other.IsExecuteSystem
+               && ExecuteExecution == other.ExecuteExecution
+               && ExecuteOrder == other.ExecuteOrder
+               && IsCleanupSystem == other.IsCleanupSystem
+               && CleanupExecution == other.CleanupExecution
+               && CleanupOrder == other.CleanupOrder
+               && TriggeredBy.SequenceEqual(other.TriggeredBy)
+               && EntityIs.SequenceEqual(other.EntityIs)
+               && Contexts.SequenceEqual(other.Contexts)
+               && ConstructorArguments.Equals(other.ConstructorArguments);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is SystemData other && Equals(other);
+    }
+
+    public override int GetHashCode() => TypeData.GetHashCode();
 
     public int CompareTo(SystemData other)
     {

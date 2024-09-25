@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Entitas.Generators.Data;
+using static Entitas.Generators.Utility.StringConstants;
 
 namespace Entitas.Generators.Utility;
 
@@ -14,7 +15,7 @@ public static class SystemDataUtility
         if (systemData.HasNoConstraints())
             return string.Empty;
         if (systemData.EntityIsContext())
-            return $"{systemData.EntityIs[0].FullName.RemoveSuffix("Context")}Entity";
+            return $"{systemData.EntityIs[0].FullName.RemoveSuffix(ContextName)}Entity";
         if (systemData.EntityIsFeature())
             return $"{systemData.EntityIs[0].NamespaceSpecifier}I{systemData.EntityIs[0].Name}Entity";
 

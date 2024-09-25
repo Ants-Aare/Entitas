@@ -126,10 +126,10 @@ public sealed class GenerateEntityExtensions
         {
             if (eventData.ListenTarget == ListenTarget.Entity)
             {
-                var declaration = eventData.AllowMultipleListeners
-                    ? $"public System.Collections.Generic.List<{componentData.TypeData.NamespaceSpecifier}I{eventData.Type.Prefix}{eventData.ComponentEvent}Listener> z{eventData.Type.Prefix}{eventData.ComponentEvent}Listeners;"
-                    : $"public {componentData.TypeData.NamespaceSpecifier}I{eventData.Type.Prefix}{eventData.ComponentEvent}Listener z{eventData.Type.Prefix}{eventData.ComponentEvent}Listener;";
-                eventListenerDeclarations.AppendLine(declaration);
+                if(eventData.AllowMultipleListeners)
+                    eventListenerDeclarations.Append("public System.Collections.Generic.List<").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener> z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listeners;");
+                else
+                    eventListenerDeclarations.Append("public ").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listener;");
             }
 
             var arguments = eventData.ComponentEvent == ComponentEvent.Removed ? string.Empty : methodArgumentsWithLeadingComma;
@@ -139,10 +139,11 @@ public sealed class GenerateEntityExtensions
                 { Execution: EventExecution.Instant, AllowMultipleListeners: false, ListenTarget: ListenTarget.Context } => $"\t\tContext.z{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
                 { Execution: EventExecution.Instant, AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
                 { Execution: EventExecution.Instant, AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.On{componentData.Prefix}{eventData.ComponentEvent}(this{arguments});",
-                { AllowMultipleListeners: true, ListenTarget: ListenTarget.Context } => $"\t\tforeach (var value in Context.z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.Changed = true;",
-                { AllowMultipleListeners: false, ListenTarget: ListenTarget.Context } => $"\t\tContext.z{componentData.Prefix}{eventData.ComponentEvent}Listener?.Changed = true;",
-                { AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.Changed = true;",
-                { AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.Changed = true;",
+                // { AllowMultipleListeners: true, ListenTarget: ListenTarget.Context } => $"\t\tforeach (var value in Context.z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
+                // { AllowMultipleListeners: false, ListenTarget: ListenTarget.Context } => $"\t\tContext.z{componentData.Prefix}{eventData.ComponentEvent}Listener?.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
+                // { AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
+                // { AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
+                _=> String.Empty,
             };
 
             if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Added))
