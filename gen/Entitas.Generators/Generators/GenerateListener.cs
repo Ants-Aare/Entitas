@@ -18,9 +18,6 @@ public static class GenerateListener
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            // var entityType = listenerData.GetEntityType();
-            // var contextType = listenerData.GetContextType();
-
             stringBuilder.AppendGenerationWarning(nameof(GenerateListener));
             using (new NamespaceBuilder(stringBuilder, listenerData.Namespace))
             {
@@ -46,7 +43,7 @@ public static class GenerateListener
         context.AddSource(StringUtility.FileNameHint(listenerData.Namespace, listenerData.Name), stringBuilder.ToString());
     }
 
-    static string GetContent(ExtendedListenerData data/*, string entityType, string contextType*/)
+    static string GetContent(ExtendedListenerData data /*, string entityType, string contextType*/)
     {
         var listenerData = data.ListenerData;
         var interfaces = new StringBuilder();
@@ -72,8 +69,8 @@ public static class GenerateListener
             var context = data.ContextDatas[i];
             if (i == 0)
             {
-                startListeningCalls.Append("\n\t\tif(entity is ").Append(context.FullPrefix).Append("Entity ").Append(context.Prefix).Append("Entity){");
-                stopListeningCalls.Append("\n\t\tif(entity is ").Append(context.FullPrefix).Append("Entity ").Append(context.Prefix).Append("Entity){");
+                startListeningCalls.Append("\n\t\tif(entity is ").Append(context.FullPrefix).Append("Entity ").Append(context.Prefix).Append("Entity)\n\t\t{");
+                stopListeningCalls.Append("\n\t\tif(entity is ").Append(context.FullPrefix).Append("Entity ").Append(context.Prefix).Append("Entity)\n\t\t{");
             }
             else
             {
@@ -83,32 +80,29 @@ public static class GenerateListener
 
             foreach (var eventData in listenerData.Events.Where(x => context.Components.Any(y => y == x.Component) || data.ComponentDatas.Any(y => y.Contexts.Any(c => c == context.TypeData))))
             {
-                // startListeningCalls.AppendLine("                case MatchOne.Game.GameEntity GameEntity: GameEntity.Context.zBoardAddedListener = this; break;");
-                startListeningCalls.Append("\n\t\t\t")
-                    .Append(context.Prefix)
-                    .Append("Entity");
-                if (eventData.ListenTarget == ListenTarget.Context)
-                    startListeningCalls.Append(".Context");
-                startListeningCalls.Append(".z")
-                    .Append(eventData.Component.Prefix)
-                    .Append(eventData.ComponentEvent)
-                    .Append("Listener");
-                startListeningCalls.Append(eventData.AllowMultipleListeners ? "s.Add(this);" : " = this;");
+                var componentData = data.ComponentDatas.FirstOrDefault(x => x.TypeData == eventData.Component);
 
                 startListeningCalls.Append("\n\t\t\t")
                     .Append(context.Prefix)
                     .Append("Entity");
-                if (eventData.ListenTarget == ListenTarget.Context)
+                if (eventData.ListenTarget == ListenTarget.Context || componentData.IsUnique)
                     startListeningCalls.Append(".Context");
-                startListeningCalls.Append(".z")
-                    .Append(eventData.Component.Prefix)
-                    .Append(eventData.ComponentEvent)
-                    .Append("Listener");
-                startListeningCalls.Append(eventData.AllowMultipleListeners ? "s.Remove(this);" : " = null;");
+                startListeningCalls.Append(".Add")
+                    .Append(eventData.Component.Prefix).Append(eventData.ComponentEvent)
+                    .Append("Listener(this);");
+
+                stopListeningCalls.Append("\n\t\t\t")
+                    .Append(context.Prefix)
+                    .Append("Entity");
+                if (eventData.ListenTarget == ListenTarget.Context || componentData.IsUnique)
+                    stopListeningCalls.Append(".Context");
+                stopListeningCalls.Append(".Remove")
+                    .Append(eventData.Component.Prefix).Append(eventData.ComponentEvent)
+                    .Append("Listener(this);");
             }
 
-            startListeningCalls.Append('}');
-            stopListeningCalls.Append('}');
+            startListeningCalls.Append("\n\t\t}");
+            stopListeningCalls.Append("\n\t\t}");
         }
 
         // var startListeningCalls = new StringBuilder().AppendJoin("\n\t\t", listenerData.Events, x => $"StartListeningTo{x.Component.Prefix}{x.ComponentEvent}(({x.Component.NamespaceSpecifier}I{x.Component.Prefix}Entity)entity);");
@@ -127,9 +121,11 @@ public static class GenerateListener
 
     static void AppendEventContent(StringBuilder stringBuilder, ExtendedListenerData data, EventData eventData)
     {
-        var contexts = data.ContextDatas.Where(context => context.Components.Any(x => x == eventData.Component)
-                                                          || data.ComponentDatas.Any(y => y.Contexts.Any(z => z == context.TypeData)))
+        var contexts = data.ContextDatas
+            .Where(context => context.Components.Any(x => x == eventData.Component)
+                              || data.ComponentDatas.Any(y => y.Contexts.Any(z => z == context.TypeData)))
             .ToList();
+        var componentData = data.ComponentDatas.FirstOrDefault(x => x.TypeData == eventData.Component);
 
         // var listenerData = data.ListenerData;
         var eventName = eventData.Component.Prefix + eventData.ComponentEvent;
@@ -159,15 +155,14 @@ public static class GenerateListener
                 .Append("Entity: ")
                 .Append(contextData.Prefix)
                 .Append("Entity");
-            if (eventData.ListenTarget == ListenTarget.Context)
+            if (eventData.ListenTarget == ListenTarget.Context || componentData.IsUnique)
                 stringBuilder.Append(".Context");
-            stringBuilder.Append(".z")
+            stringBuilder.Append(".Add")
                 .Append(eventName)
-                .Append("Listener");
-            stringBuilder.AppendLine(eventData.AllowMultipleListeners ? "s.Add(this); break;" : " = this; break;");
+                .Append("Listener(this);break;");
         }
 
-        stringBuilder.AppendLine("}}");
+        stringBuilder.AppendLine("\n\t}\n}");
 
         stringBuilder.AppendLine(
             $$"""
@@ -185,14 +180,13 @@ public static class GenerateListener
                 .Append("Entity: ")
                 .Append(contextData.Prefix)
                 .Append("Entity");
-            if (eventData.ListenTarget == ListenTarget.Context)
+            if (eventData.ListenTarget == ListenTarget.Context || componentData.IsUnique)
                 stringBuilder.Append(".Context");
-            stringBuilder.Append(".z")
+            stringBuilder.Append(".Remove")
                 .Append(eventName)
-                .Append("Listener");
-            stringBuilder.AppendLine(eventData.AllowMultipleListeners ? "s.Remove(this); break;" : " = null; break;");
+                .Append("Listener(this);break;");
         }
-        stringBuilder.AppendLine("}}");
 
+        stringBuilder.AppendLine("\n\t}\n}");
     }
 }

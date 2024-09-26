@@ -126,10 +126,18 @@ public sealed class GenerateEntityExtensions
         {
             if (eventData.ListenTarget == ListenTarget.Entity)
             {
-                if(eventData.AllowMultipleListeners)
-                    eventListenerDeclarations.Append("public System.Collections.Generic.List<").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener> z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listeners;");
+                if (eventData.AllowMultipleListeners)
+                    eventListenerDeclarations.Append("System.Collections.Generic.List<").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener> z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listeners;");
                 else
-                    eventListenerDeclarations.Append("public ").Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listener;");
+                    eventListenerDeclarations.Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener z").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).AppendLine("Listener;");
+
+                eventListenerDeclarations.Append("\n\t[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]\n\tpublic void Add").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener(")
+                    .Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener listener){z")
+                    .Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append(eventData.AllowMultipleListeners ? "Listeners.Add(listener);}" : "Listener = listener;}");
+
+                eventListenerDeclarations.Append("\n\t[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]\n\tpublic void Remove").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener(")
+                    .Append(componentData.TypeData.NamespaceSpecifier).Append("I").Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append("Listener listener){z")
+                    .Append(eventData.Component.Prefix).Append(eventData.ComponentEvent).Append(eventData.AllowMultipleListeners ? "Listeners.Remove(listener);}" : "Listener = null;}");
             }
 
             var arguments = eventData.ComponentEvent == ComponentEvent.Removed ? string.Empty : methodArgumentsWithLeadingComma;
@@ -143,7 +151,7 @@ public sealed class GenerateEntityExtensions
                 // { AllowMultipleListeners: false, ListenTarget: ListenTarget.Context } => $"\t\tContext.z{componentData.Prefix}{eventData.ComponentEvent}Listener?.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
                 // { AllowMultipleListeners: true } => $"\t\tforeach (var value in z{componentData.Prefix}{eventData.ComponentEvent}Listeners)\n\t\t\tvalue.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
                 // { AllowMultipleListeners: false } => $"\t\tz{componentData.Prefix}{eventData.ComponentEvent}Listener?.{eventData.Component.Prefix}{eventData.ComponentEvent}();",
-                _=> String.Empty,
+                _ => String.Empty,
             };
 
             if (eventData.ComponentEvent.HasFlagFast(ComponentEvent.Added))
